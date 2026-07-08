@@ -1,0 +1,5 @@
+1. I want to deploy a project on the remote server under /home/ubuntu/pj_sts_demo
+2. pease refer to the uri
+https://github.com/huggingface/speech-to-speech
+3. please all create a new python environment under this project.
+4. there's also a  local llm server under the remote server local:8000 ,just use this to replace the openai model.

@@ -1,0 +1,22 @@
+{
+  "name": "speech-to-speech-frontend",
+  "version": "1.0.0",
+  "description": "Frontend module for the Hugging Face speech-to-speech realtime websocket backend.",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "serve": "node server.mjs",
+    "lint": "next lint"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "lucide-react": "^1.23.0",
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  }
+}

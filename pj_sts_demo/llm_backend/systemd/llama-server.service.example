@@ -1,0 +1,17 @@
+[Unit]
+Description=llama.cpp OpenAI-compatible model server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu
+ExecStart=/home/ubuntu/llama.cpp/build/bin/llama-server --models-preset /home/ubuntu/models.ini --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=300
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

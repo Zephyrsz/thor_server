@@ -1,0 +1,20 @@
+# Global configurations applied across all presets.
+[*]
+host = 0.0.0.0
+port = 8000
+threads = 8
+
+# Model 1: Qwen 35B. Backend code should use model id "qwen35b".
+[qwen35b]
+model = /home/ubuntu/data/models/Qwen3.6-35B-A3B-Q8_K_P.gguf
+mmproj = /home/ubuntu/data/models/mmproj-Qwen3.6-35B-A3B-f16.gguf
+ctx-size = 131072
+n-gpu-layers = 99
+jinja = on
+
+# Model 2: Qwythos 9B.
+[qwythos9b]
+model = /home/ubuntu/data/models/Qwythos-9B-Claude-Mythos-5-1M-BF16.gguf
+mmproj = /home/ubuntu/data/models/mmproj-Qwythos-9B-Claude-Mythos-5-1M-F16.gguf
+ctx-size = 131072
+
