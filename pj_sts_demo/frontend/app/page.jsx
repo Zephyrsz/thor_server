@@ -2,19 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle,
-  ArrowRight,
-  CircleStop,
-  Headphones,
-  Mic,
-  Radio,
-  RefreshCcw,
-  Server,
-  Trash2,
-  Volume2,
-  Waves,
-} from "lucide-react";
-import {
   DEFAULT_WS_URL,
   PcmPlayer,
   TARGET_SAMPLE_RATE,
@@ -29,26 +16,6 @@ const CONFIG_URL = "/api/config";
 
 function makeId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function Badge({ tone = "neutral", children }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
-}
-
-function Button({ kind = "secondary", icon: Icon, children, type = "button", ...props }) {
-  return (
-    <button className={`button button-${kind}`} type={type} {...props}>
-      {Icon ? <Icon size={16} /> : null}
-      <span>{children}</span>
-    </button>
-  );
-}
-
-function splitTranscriptItems(text) {
-  return text
-    .split(/\n{2,}/g)
-    .map((part) => part.trim())
-    .filter(Boolean);
 }
 
 function formatDuration(seconds) {
@@ -113,6 +80,91 @@ async function getRuntimeDefaultWsUrl() {
   }
 }
 
+function EqBars({ color = "var(--user)", height = 24, active = false, level = 0.4, compact = false }) {
+  const bars = [0.42, 0.65, 0.9, 0.58, 0.78, 0.48, 0.7, 0.36, 0.86, 0.56];
+  return (
+    <div className={`eq-bars ${compact ? "eq-bars-compact" : ""}`} style={{ minHeight: height }}>
+      {bars.map((scale, index) => (
+        <span
+          key={`${scale}-${index}`}
+          className={active ? "active" : ""}
+          style={{
+            "--bar-color": color,
+            "--bar-scale": Math.max(0.25, active ? scale * Math.max(level, 0.28) : scale * 0.45),
+            animationDelay: `${-index * 0.13}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Mascot({ role, active }) {
+  const isAssistant = role === "assistant";
+  return (
+    <div className={`mascot ${isAssistant ? "mascot-assistant" : "mascot-user"} ${active ? "active" : ""}`}>
+      {!isAssistant ? <span className="mascot-ring" aria-hidden="true" /> : null}
+      <div className="mascot-face" aria-hidden="true">
+        <div className="mascot-eyes">
+          <span />
+          <span />
+        </div>
+        <span className={isAssistant ? "mascot-mouth mascot-mouth-talk" : "mascot-mouth"} />
+      </div>
+      {isAssistant ? (
+        <>
+          <span className="mascot-ear mascot-ear-left" aria-hidden="true" />
+          <span className="mascot-ear mascot-ear-right" aria-hidden="true" />
+        </>
+      ) : (
+        <span className="mascot-mic" aria-hidden="true">
+          <span />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function StatusPill({ state }) {
+  const connected = state === "connected";
+  return (
+    <div className={`status-pill ${connected ? "status-pill-connected" : ""}`}>
+      <span className="status-dot" />
+      <span>{connected ? "已连接 CONNECTED" : "未连接 OFFLINE"}</span>
+    </div>
+  );
+}
+
+function Metric({ label, children, mono = false }) {
+  return (
+    <div className="metric-card">
+      <div>{label}</div>
+      <strong className={mono ? "mono" : ""}>{children}</strong>
+    </div>
+  );
+}
+
+function AudioPlayback({ url, duration, chunks, active, peak }) {
+  return (
+    <div className="inline-player">
+      {url ? (
+        <audio src={url} controls preload="metadata" />
+      ) : (
+        <>
+          <button className="play-button" type="button" disabled>
+            ▶
+          </button>
+          <div className="progress-track" aria-hidden="true">
+            <span style={{ width: active ? "44%" : chunks ? "100%" : "8%" }} />
+          </div>
+        </>
+      )}
+      <span className="mono">{duration}</span>
+      {Number.isFinite(peak) ? <span className="player-meta">峰值 {Math.round(peak * 100)}%</span> : null}
+    </div>
+  );
+}
+
 export default function Page() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_WS_URL);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -128,6 +180,8 @@ export default function Page() {
   const [liveUser, setLiveUser] = useState("");
   const [liveAssistant, setLiveAssistant] = useState("");
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const [outputAudio, setOutputAudio] = useState({
     chunks: 0,
     bytes: 0,
@@ -139,7 +193,6 @@ export default function Page() {
     url: "",
   });
   const [sessionLabel, setSessionLabel] = useState("not connected");
-  const [connectionNote, setConnectionNote] = useState("Connect to the remote server, then start the browser microphone.");
   const [localAudio, setLocalAudio] = useState({
     inputLabel: "Browser microphone",
     outputLabel: "Browser speakers",
@@ -156,6 +209,9 @@ export default function Page() {
   const assistantHistoryPushedRef = useRef(false);
   const assistantAudioChunksRef = useRef([]);
   const audioUrlsRef = useRef([]);
+  const leftColumnRef = useRef(null);
+  const rightColumnRef = useRef(null);
+  const conversationRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -176,7 +232,6 @@ export default function Page() {
         setServerUrl(runtimeDefaultWsUrl);
         if (parsed.instructions) setInstructions(parsed.instructions);
       } catch {
-        // Ignore stale local state.
         setServerUrl(runtimeDefaultWsUrl);
       }
 
@@ -212,14 +267,40 @@ export default function Page() {
     []
   );
 
-  const statusTone = useMemo(() => {
-    if (socketState === "connected") return "good";
-    if (socketState === "connecting" || micState === "connecting") return "warn";
-    if (socketState === "error" || micState === "error") return "bad";
-    return "neutral";
-  }, [socketState, micState]);
+  useEffect(() => {
+    function syncColumns() {
+      const left = leftColumnRef.current;
+      const right = rightColumnRef.current;
+      if (!left || !right || window.innerWidth <= 1120) {
+        if (left) left.style.height = "";
+        return;
+      }
+
+      left.style.height = `${right.offsetHeight}px`;
+    }
+
+    syncColumns();
+    const observer = new ResizeObserver(syncColumns);
+    if (rightColumnRef.current) observer.observe(rightColumnRef.current);
+    window.addEventListener("resize", syncColumns);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", syncColumns);
+    };
+  }, [showAdvanced, showLog, error, localAudio.inputLabel, localAudio.outputLabel]);
+
+  useEffect(() => {
+    const node = conversationRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [history.length, outputAudio.url]);
 
   const outputDuration = outputAudio.samples / TARGET_SAMPLE_RATE;
+  const connected = socketState === "connected";
+  const micLive = micState === "live" || micState === "listening";
+  const outputLabel = outputAudio.chunks ? `${formatDuration(outputDuration)} received` : "waiting";
+  const currentUserText = liveUser || (micLive ? "正在接收浏览器麦克风输入…" : "Start the browser microphone, speak naturally, and watch the transcript appear here.");
+  const currentAssistantText =
+    liveAssistant || (assistantSpeaking ? "Assistant speech is streaming back from the server." : "Returned speech audio will appear here when the server responds.");
 
   function setOutputAudioState(updater) {
     setOutputAudio((current) => {
@@ -268,15 +349,13 @@ export default function Page() {
   }
 
   function pushEvent(type, detail) {
-    setEvents((current) => [
-      { id: makeId("event"), type, detail, time: nowLabel() },
-      ...current,
-    ].slice(0, 40));
+    setEvents((current) => [{ id: makeId("event"), type, detail, time: nowLabel() }, ...current].slice(0, 40));
   }
 
   function pushHistory(role, text, meta = {}) {
     if (!text.trim()) return;
     setHistory((current) => [
+      ...current,
       {
         id: makeId("turn"),
         role,
@@ -284,7 +363,6 @@ export default function Page() {
         time: nowLabel(),
         ...meta,
       },
-      ...current,
     ]);
   }
 
@@ -305,7 +383,6 @@ export default function Page() {
   async function connect() {
     setError("");
     setSocketState("connecting");
-    setConnectionNote("Opening websocket connection.");
 
     socketRef.current?.close?.();
     const targetUrl = normalizeRealtimeWsUrl(serverUrl);
@@ -323,7 +400,6 @@ export default function Page() {
         if (socketRef.current !== socket) return;
         settled = true;
         setSocketState("connected");
-        setConnectionNote("Connected. Use this browser for local speech input and output.");
         setSessionLabel("session active");
         pushEvent("socket.open", targetUrl);
         ensurePlayer();
@@ -432,6 +508,8 @@ export default function Page() {
                 audioChunks: audio.chunks,
                 audioDuration: audio.samples / TARGET_SAMPLE_RATE,
                 audioUrl,
+                audioBytes: audio.bytes,
+                audioPeak: audio.peak,
               });
               assistantHistoryPushedRef.current = true;
             }
@@ -450,7 +528,6 @@ export default function Page() {
         if (socketRef.current !== socket) return;
         setSocketState("error");
         setError("WebSocket connection failed.");
-        setConnectionNote("Connection failed.");
         if (!settled) reject(new Error("WebSocket connection failed."));
       };
 
@@ -459,7 +536,6 @@ export default function Page() {
         setSocketState("disconnected");
         setMicState("idle");
         setAssistantSpeaking(false);
-        setConnectionNote("Disconnected.");
         pushEvent("socket.close", targetUrl);
         socketRef.current = null;
         if (!settled) reject(new Error("WebSocket connection closed before opening."));
@@ -484,7 +560,6 @@ export default function Page() {
     assistantHistoryPushedRef.current = false;
     assistantAudioChunksRef.current = [];
     resetOutputAudio(false);
-    setConnectionNote("Disconnected.");
   }
 
   async function startMic() {
@@ -516,7 +591,6 @@ export default function Page() {
       });
       await refreshLocalAudioDevices();
       setMicState("live");
-      setConnectionNote("Browser microphone is streaming to the remote model.");
       pushEvent("mic.start", "capturing");
     } catch (nextError) {
       setMicState("error");
@@ -530,10 +604,10 @@ export default function Page() {
     setMicState("idle");
     setMicLevel(0);
     pushEvent("mic.stop", "stopped");
-    setConnectionNote("Microphone stopped.");
   }
 
   function clearConversation() {
+    if (history.length && !window.confirm("清空当前对话历史？")) return;
     setHistory([]);
     setEvents([]);
     setLiveUser("");
@@ -549,293 +623,243 @@ export default function Page() {
     pushEvent("history.clear", "cleared");
   }
 
-  const liveBlocks = splitTranscriptItems(liveUser || liveAssistant);
-
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Realtime Voice Console</p>
-          <h1>Browser voice UI for the speech-to-speech server.</h1>
-        </div>
-        <div className="topbar-status">
-          <Badge tone={statusTone}>{socketState}</Badge>
-          <span className="status-copy">{connectionNote}</span>
-        </div>
-      </header>
+      <div className="app-frame">
+        <header className="topbar">
+          <div>
+            <h1>Real-time speech AI</h1>
+          </div>
+          <StatusPill state={socketState} />
+        </header>
 
-      <section className="hero-strip">
-        <div className="hero-metric">
-          <span>Endpoint</span>
-          <strong>{serverUrl}</strong>
-        </div>
-        <div className="hero-metric">
-          <span>Session</span>
-          <strong>{sessionLabel}</strong>
-        </div>
-        <div className="hero-metric">
-          <span>Input mic</span>
-          <strong>{micState}</strong>
-        </div>
-        <div className="hero-metric">
-          <span>Output audio</span>
-          <strong>{outputAudio.chunks ? `${formatDuration(outputDuration)} received` : "waiting"}</strong>
-        </div>
-      </section>
+        <section className="status-strip" aria-label="Session overview">
+          <Metric label="端点 · Endpoint" mono>
+            {serverUrl || "loading"}
+          </Metric>
+          <Metric label="会话 · Session">{sessionLabel}</Metric>
+          <Metric label="麦克风 · Mic">{micLive ? "采集中" : micState}</Metric>
+          <Metric label="输出音频 · Output">{outputLabel}</Metric>
+        </section>
 
-      <section className="workspace">
-        <div className="primary-column">
-          <section className="panel live-panel">
-            <div className="panel-head">
-              <div>
-                <p className="panel-kicker">Live transcript</p>
-                <h2>{assistantSpeaking ? "Assistant speaking" : "Listening for speech"}</h2>
+        <section className="main-grid">
+          <div className="left-column" data-role="leftcol" ref={leftColumnRef}>
+            <section className="live-grid" aria-label="Realtime interaction">
+              <article className="live-card live-card-user">
+                <div className="card-head">
+                  <div>
+                    <p>Live transcript</p>
+                    <h2>Listening for speech</h2>
+                  </div>
+                  <span className="role-badge role-badge-user">你 · YOU</span>
+                </div>
+                <div className="live-card-body live-card-body-user">
+                  <Mascot role="user" active={micLive} />
+                  <div className="live-copy">
+                    <div className={`state-line ${micLive ? "active" : ""}`}>
+                      <span />
+                      正在聆听 · LISTENING
+                    </div>
+                    <p>{currentUserText}</p>
+                    <div className="input-level">
+                      <span>输入电平</span>
+                      <EqBars color="var(--user)" height={24} active={micLive} level={Math.max(0.28, micLevel)} />
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              <article className="live-card live-card-assistant">
+                <div className="card-head">
+                  <div>
+                    <p>Speech output</p>
+                    <h2>Assistant audio stream</h2>
+                  </div>
+                  <span className="role-badge role-badge-assistant">语音助手 · AI</span>
+                </div>
+                <div className="live-card-body">
+                  <Mascot role="assistant" active={assistantSpeaking} />
+                  <div className="live-copy">
+                    <div className={`state-line state-line-assistant ${assistantSpeaking ? "active" : ""}`}>
+                      <span />
+                      正在播放 · SPEAKING
+                    </div>
+                    <EqBars
+                      color="var(--assistant)"
+                      height={30}
+                      active={assistantSpeaking || outputAudio.active}
+                      level={Math.max(0.3, outputAudio.level)}
+                    />
+                    <p>{currentAssistantText}</p>
+                    <AudioPlayback
+                      url={outputAudio.url}
+                      duration={formatDuration(outputDuration)}
+                      chunks={outputAudio.chunks}
+                      active={outputAudio.active}
+                      peak={outputAudio.peak}
+                    />
+                  </div>
+                </div>
+              </article>
+            </section>
+
+            <section className="conversation-panel">
+              <div className="conversation-head">
+                <div>
+                  <p>Conversation</p>
+                  <h2>对话记录</h2>
+                </div>
+                <div className="legend-row">
+                  <span>
+                    <i className="legend-user" />
+                    你
+                  </span>
+                  <span>
+                    <i className="legend-assistant" />
+                    语音助手
+                  </span>
+                  <strong>{history.length} 轮</strong>
+                </div>
               </div>
-              <div className="wave-group" aria-hidden="true">
-                <span className={`wave ${micState === "live" ? "active" : ""}`} />
-                <span className={`wave ${assistantSpeaking ? "active" : ""}`} />
-                <span className="wave" />
-              </div>
-            </div>
 
-            <div className="live-body">
-              <div className="live-text" aria-live="polite" aria-atomic="false">
-                {liveBlocks.length ? (
-                  liveBlocks.map((block, index) => <p key={`${block.slice(0, 12)}-${index}`}>{block}</p>)
+              <div className="conversation-scroll" ref={conversationRef}>
+                {history.length ? (
+                  history.map((item) => (
+                    <article key={item.id} className={`turn-row turn-row-${item.role}`}>
+                      <div className="turn-bubble-wrap">
+                        <div className="turn-meta">
+                          <span>{item.role === "user" ? "你 · YOU" : "语音助手 · ASSISTANT"}</span>
+                          <time>{item.time}</time>
+                        </div>
+                        <div className="turn-bubble">
+                          <p>{item.text}</p>
+                          {item.role === "assistant" && item.audioChunks ? (
+                            <div className="turn-audio">
+                              <AudioPlayback
+                                url={item.audioUrl}
+                                duration={formatDuration(item.audioDuration)}
+                                chunks={item.audioChunks}
+                                active={false}
+                                peak={item.audioPeak}
+                              />
+                              <span>
+                                {item.audioChunks} 段音频 · {formatDuration(item.audioDuration)} · {formatBytes(item.audioBytes)}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </article>
+                  ))
                 ) : (
-                  <p className="placeholder">
-                    Start the browser microphone, speak naturally, and watch the transcript appear here.
-                  </p>
+                  <div className="empty-state">
+                    <p>No completed turns yet.</p>
+                  </div>
                 )}
               </div>
-              <div className="meter-row">
-                <span>Mic level</span>
-                <div className="meter-track" aria-hidden="true">
-                  <div className="meter-fill" style={{ width: `${Math.max(6, micLevel * 100)}%` }} />
+            </section>
+          </div>
+
+          <aside className="right-column" data-role="rightcol" ref={rightColumnRef}>
+            <section className="side-panel session-panel">
+              <p>Session</p>
+              <h2>会话控制</h2>
+              <button className="primary-action" type="button" onClick={connected ? disconnect : () => void connect().catch(() => {})}>
+                {connected ? "断开连接" : "连接服务器"}
+              </button>
+              <button className="secondary-action" type="button" onClick={micRef.current ? stopMic : startMic}>
+                <span className={micLive ? "action-dot action-dot-on" : "action-dot"} />
+                {micRef.current ? "停止麦克风" : "启动浏览器麦克风"}
+              </button>
+              <button className="weak-action" type="button" onClick={clearConversation}>
+                清空对话历史
+              </button>
+              {error ? (
+                <div className="side-alert side-alert-error">
+                  <strong>Connection issue</strong>
+                  <span>{error}</span>
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="panel output-panel">
-            <div className="panel-head">
-              <div>
-                <p className="panel-kicker">Speech output</p>
-                <h2>{outputAudio.active ? "Playing assistant audio" : "Assistant audio stream"}</h2>
-              </div>
-              <Badge tone={outputAudio.active ? "warn" : outputAudio.chunks ? "good" : "neutral"}>
-                {outputAudio.active ? "playing" : outputAudio.chunks ? "received" : "idle"}
-              </Badge>
-            </div>
-
-            <div className="output-body">
-              <div className="speaker-visual" aria-hidden="true">
-                <Volume2 size={24} />
-                <div className="speaker-bars">
-                  {[0.35, 0.55, 0.78, 0.48, 0.68, 0.42].map((scale, index) => (
-                    <span
-                      key={scale}
-                      className={outputAudio.active ? "active" : ""}
-                      style={{
-                        height: `${Math.max(18, (outputAudio.level || scale) * 72 * scale)}px`,
-                        animationDelay: `${index * 0.06}s`,
-                      }}
-                    />
-                  ))}
+              ) : null}
+              {!localAudio.secureContext || !localAudio.available ? (
+                <div className="side-alert">
+                  <strong>Browser audio</strong>
+                  <span>Use HTTPS or localhost so the browser can grant microphone access.</span>
                 </div>
-              </div>
+              ) : null}
+            </section>
 
-              <div className="output-stats">
-                <div>
-                  <span>Chunks</span>
-                  <strong>{outputAudio.chunks}</strong>
-                </div>
-                <div>
-                  <span>Audio</span>
-                  <strong>{formatDuration(outputDuration)}</strong>
-                </div>
-                <div>
-                  <span>Payload</span>
-                  <strong>{formatBytes(outputAudio.bytes)}</strong>
-                </div>
-                <div>
-                  <span>Peak</span>
-                  <strong>{Math.round(outputAudio.peak * 100)}%</strong>
-                </div>
-              </div>
-              {outputAudio.url ? (
-                <audio className="audio-player" src={outputAudio.url} controls preload="metadata" />
-              ) : (
-                <div className="audio-placeholder">Returned speech audio will appear here when the server responds.</div>
-              )}
-            </div>
-          </section>
-
-          <section className="panel history-panel">
-            <div className="panel-head">
-              <div>
-                <p className="panel-kicker">Conversation</p>
-                <h2>Turn history</h2>
-              </div>
-              <Badge tone="neutral">{history.length} turns</Badge>
-            </div>
-
-            <div className="history-list">
-              {history.length ? (
-                history.map((item) => (
-                  <article key={item.id} className={`turn turn-${item.role}`}>
-                    <div className="turn-meta">
-                      <span>{item.role === "user" ? "You" : "Assistant"}</span>
-                      <time>{item.time}</time>
-                    </div>
-                    <p>{item.text}</p>
-                    {item.role === "assistant" && item.audioChunks ? (
-                      <div className="turn-audio">
-                        <Radio size={14} />
-                        <span>
-                          {item.audioChunks} audio chunks · {formatDuration(item.audioDuration)}
-                        </span>
-                        {item.audioUrl ? <audio src={item.audioUrl} controls preload="metadata" /> : null}
-                      </div>
-                    ) : null}
-                  </article>
-                ))
-              ) : (
-                <div className="empty-state">
-                  <Waves size={20} />
-                  <p>No completed turns yet.</p>
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-
-        <aside className="rail">
-          <section className="panel control-panel">
-            <div className="panel-head">
-              <div>
-                <p className="panel-kicker">Connection</p>
-                <h2>Server settings</h2>
-              </div>
-              <Badge tone={socketState === "connected" ? "good" : "neutral"}>
-                {socketState === "connected" ? "online" : "offline"}
-              </Badge>
-            </div>
-
-            <label className="field">
-              <span>WebSocket URL</span>
-              <input value={serverUrl} readOnly spellCheck="false" />
-            </label>
-
-            <label className="field">
-              <span>Instructions</span>
-              <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={6} />
-            </label>
-
-            <div className="button-grid">
-              <Button kind="primary" icon={Server} onClick={() => void connect().catch(() => {})}>
-                Connect
-              </Button>
-              <Button kind="secondary" icon={ArrowRight} onClick={startMic}>
-                Start browser mic
-              </Button>
-              <Button kind="secondary" icon={CircleStop} onClick={stopMic}>
-                Stop mic
-              </Button>
-              <Button kind="ghost" icon={RefreshCcw} onClick={disconnect}>
-                Disconnect
-              </Button>
-            </div>
-
-            <div className="action-row">
-              <Button kind="ghost" icon={Trash2} onClick={clearConversation}>
-                Clear history
-              </Button>
-            </div>
-
-            <div className="helper-stack">
-              <div className="device-item">
-                <div>
-                  <Mic size={16} />
-                  <span>Input source</span>
-                </div>
+            <section className="side-panel devices-panel">
+              <p>Devices · 设备</p>
+              <div className="device-row">
+                <span>输入</span>
                 <strong>{localAudio.inputLabel}</strong>
               </div>
-              <div className="device-item">
-                <div>
-                  <Headphones size={16} />
-                  <span>Output target</span>
-                </div>
+              <div className="device-row">
+                <span>输出</span>
                 <strong>{localAudio.outputLabel}</strong>
               </div>
-              <div className="helper-item">
-                <span>Sample rate</span>
-                <strong>{TARGET_SAMPLE_RATE} Hz</strong>
-              </div>
-              <div className="helper-item">
-                <span>Transport</span>
-                <strong>OpenAI Realtime websocket</strong>
-              </div>
-            </div>
-          </section>
-
-          {!localAudio.secureContext || !localAudio.available ? (
-            <section className="panel warning-panel">
-              <div className="panel-head">
-                <div>
-                  <p className="panel-kicker">Browser audio</p>
-                  <h2>Microphone permission</h2>
-                </div>
-                <Badge tone="warn">client</Badge>
-              </div>
-              <p>
-                Browser microphone input comes from the user device. Use HTTPS or localhost so the browser can grant
-                microphone access.
-              </p>
             </section>
-          ) : null}
 
-          <section className="panel event-panel">
-            <div className="panel-head">
-              <div>
-                <p className="panel-kicker">Event log</p>
-                <h2>Recent events</h2>
+            <section className="side-panel instructions-panel">
+              <div className="side-head-row">
+                <div>
+                  <p>Instructions</p>
+                  <h2>系统提示词</h2>
+                </div>
+                <span>System prompt</span>
               </div>
-              <Badge tone="neutral">{events.length}</Badge>
-            </div>
+              <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={6} />
+            </section>
 
-            <div className="event-list">
-              {events.length ? (
-                events.map((item) => (
-                  <div key={item.id} className="event-row">
-                    <span>{item.time}</span>
-                    <strong>{item.type}</strong>
-                    {item.detail ? <em>{item.detail}</em> : null}
+            <section className="collapse-panel">
+              <button type="button" onClick={() => setShowAdvanced((value) => !value)}>
+                <span>高级设置 · Advanced</span>
+                <span>{showAdvanced ? "收起 ▾" : "展开 ▸"}</span>
+              </button>
+              {showAdvanced ? (
+                <div className="collapse-body">
+                  <label>
+                    <span>WebSocket URL</span>
+                    <input value={serverUrl} readOnly spellCheck="false" />
+                  </label>
+                  <div className="setting-row">
+                    <span>采样率 Sample rate</span>
+                    <strong className="mono">{TARGET_SAMPLE_RATE} Hz</strong>
                   </div>
-                ))
-              ) : (
-                <div className="empty-state">
-                  <AlertCircle size={20} />
-                  <p>No events yet.</p>
+                  <div className="setting-row">
+                    <span>传输 Transport</span>
+                    <strong>OpenAI Realtime WS</strong>
+                  </div>
                 </div>
-              )}
-            </div>
-          </section>
-
-          {error ? (
-            <section className="panel error-panel">
-              <div className="panel-head">
-                <div>
-                  <p className="panel-kicker">Error</p>
-                  <h2>Connection issue</h2>
-                </div>
-                <Badge tone="bad">attention</Badge>
-              </div>
-              <p>{error}</p>
+              ) : null}
             </section>
-          ) : null}
-        </aside>
-      </section>
+
+            <section className="collapse-panel">
+              <button type="button" onClick={() => setShowLog((value) => !value)}>
+                <span>
+                  开发者日志 · Log <strong>{events.length}</strong>
+                </span>
+                <span>{showLog ? "收起 ▾" : "展开 ▸"}</span>
+              </button>
+              {showLog ? (
+                <div className="developer-log">
+                  {events.length ? (
+                    events.map((item) => (
+                      <div className="event-row" key={item.id}>
+                        <time>{item.time}</time>
+                        <strong>{item.type}</strong>
+                        {item.detail ? <span>{item.detail}</span> : null}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="log-empty">No events yet.</div>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          </aside>
+        </section>
+      </div>
     </main>
   );
 }
