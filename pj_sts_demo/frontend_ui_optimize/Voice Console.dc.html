@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #090d13;
+    color: #e8edf2;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: #4fe0bf; text-decoration: none; }
+  a:hover { color: #7fecd3; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 6px; }
+  @keyframes eq { 0%,100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+  @keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.85); } }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+  @keyframes talk { 0%,100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+  @keyframes ring { 0% { transform: scale(0.9); opacity: 0.55; } 100% { transform: scale(1.45); opacity: 0; } }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; padding: 40px clamp(20px, 4vw, 64px) 64px;">
+  <div style="max-width: 1360px; margin: 0 auto;">
+
+    <!-- ===== HEADER ===== -->
+    <header style="display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; flex-wrap: wrap;">
+      <div>
+        <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.16em; text-transform: uppercase; font-size: 11px; color: #4fe0bf; font-weight: 600; display: none">Realtime Voice Console</div>
+        <h1 style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: clamp(26px, 3.4vw, 44px); line-height: 1.05; letter-spacing: -0.02em; margin: 10px 0 0; white-space: nowrap">Real-time speech AI</h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <sc-if value="{{ connected }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; align-items: center; gap: 9px; background: rgba(79,224,191,0.12); border: 1px solid rgba(79,224,191,0.35); padding: 8px 15px; border-radius: 999px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #4fe0bf; animation: pulseDot 1.6s ease-in-out infinite;"></span>
+            <span style="font-weight: 600; font-size: 13px; color: #9defd5;">已连接 CONNECTED</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ disconnected }}">
+          <div style="display: flex; align-items: center; gap: 9px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); padding: 8px 15px; border-radius: 999px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #6a7684;"></span>
+            <span style="font-weight: 600; font-size: 13px; color: #98a4b2;">未连接 OFFLINE</span>
+          </div>
+        </sc-if>
+      </div>
+    </header>
+
+    <!-- ===== STATUS STRIP ===== -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 30px;">
+      <div style="background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 15px 17px;">
+        <div style="letter-spacing: 0.12em; text-transform: uppercase; font-size: 10.5px; color: #7c8b9a; font-weight: 600;">端点 · Endpoint</div>
+        <div style="font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; color: #cfd8e2; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">wss://183.179.202.82:8003</div>
+      </div>
+      <div style="background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 15px 17px;">
+        <div style="letter-spacing: 0.12em; text-transform: uppercase; font-size: 10.5px; color: #7c8b9a; font-weight: 600;">会话 · Session</div>
+        <div style="font-size: 14.5px; color: #e8edf2; margin-top: 8px; font-weight: 500;">就绪 · ready</div>
+      </div>
+      <div style="background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 15px 17px;">
+        <div style="letter-spacing: 0.12em; text-transform: uppercase; font-size: 10.5px; color: #7c8b9a; font-weight: 600;">麦克风 · Mic</div>
+        <div style="font-size: 14.5px; color: #e8edf2; margin-top: 8px; font-weight: 500;">{{ micStatus }}</div>
+      </div>
+      <div style="background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 15px 17px;">
+        <div style="letter-spacing: 0.12em; text-transform: uppercase; font-size: 10.5px; color: #7c8b9a; font-weight: 600;">输出音频 · Output</div>
+        <div style="font-size: 14.5px; color: #e8edf2; margin-top: 8px; font-weight: 500;">已接收 8.9s</div>
+      </div>
+    </div>
+
+    <!-- ===== MAIN GRID ===== -->
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 22px; margin-top: 22px; align-items: start;">
+
+      <!-- ===== LEFT COLUMN ===== -->
+      <div data-role="leftcol" style="display: flex; flex-direction: column; gap: 22px; min-width: 0; min-height: 0;">
+
+        <!-- ===== LIVE INTERACTION (mascots) ===== -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px;">
+
+          <!-- YOU · Listening for speech -->
+          <section style="position: relative; background: #0f1620; border: 1px solid rgba(79,224,191,0.22); border-radius: 18px; padding: 18px 20px; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; font-size: 10.5px; color: #4fe0bf; font-weight: 600;">Live transcript</div>
+                <div style="font-size: 15px; font-weight: 600; margin-top: 3px;">Listening for speech</div>
+              </div>
+              <span style="font-size: 11px; font-weight: 600; color: #9defd5; background: rgba(79,224,191,0.12); border: 1px solid rgba(79,224,191,0.3); padding: 3px 9px; border-radius: 999px;">你 · YOU</span>
+            </div>
+            <div style="display: flex; flex-direction: row-reverse; align-items: center; gap: 16px; margin-top: 16px;">
+              <div style="position: relative; flex-shrink: 0; animation: bob 3s ease-in-out infinite;">
+                <span style="position: absolute; inset: -7px; border-radius: 30px; border: 2px solid rgba(79,224,191,0.5); animation: ring 1.8s ease-out infinite;"></span>
+                <div style="position: relative; width: 76px; height: 76px; border-radius: 26px; background: linear-gradient(160deg, #5fead0, #37b79d); box-shadow: 0 8px 22px rgba(79,224,191,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;">
+                  <div style="display: flex; gap: 13px;">
+                    <span style="width: 11px; height: 11px; border-radius: 50%; background: #06312a; animation: blink 4s infinite;"></span>
+                    <span style="width: 11px; height: 11px; border-radius: 50%; background: #06312a; animation: blink 4s infinite;"></span>
+                  </div>
+                  <span style="width: 20px; height: 10px; border-radius: 0 0 18px 18px; background: #06312a;"></span>
+                </div>
+                <span style="position: absolute; bottom: -3px; left: -3px; width: 26px; height: 26px; border-radius: 50%; background: #06231c; border: 2px solid #5fead0; display: flex; align-items: center; justify-content: center;">
+                  <span style="width: 7px; height: 12px; border-radius: 5px; background: #5fead0;"></span>
+                </span>
+              </div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 7px;">
+                  <span style="width: 7px; height: 7px; border-radius: 50%; background: #4fe0bf; animation: pulseDot 1.2s ease-in-out infinite;"></span>
+                  <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: #4fe0bf;">正在聆听 · LISTENING</span>
+                </div>
+                <div style="font-size: 13.5px; line-height: 1.5; color: #d7f4ec;">Could you introduce some of the food in Tokyo<span style="color:#4fe0bf;">…</span></div>
+                <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                  <span style="font-size: 10.5px; color: #7c8b9a;">输入电平</span>
+                  <div style="display: flex; align-items: flex-end; gap: 3px; height: 24px;">{{ eqUserBig }}</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ASSISTANT · Assistant audio stream -->
+          <section style="position: relative; background: #0f1620; border: 1px solid rgba(110,168,255,0.22); border-radius: 18px; padding: 18px 20px; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; font-size: 10.5px; color: #6ea8ff; font-weight: 600;">Speech output</div>
+                <div style="font-size: 15px; font-weight: 600; margin-top: 3px;">Assistant audio stream</div>
+              </div>
+              <span style="font-size: 11px; font-weight: 600; color: #bcd6ff; background: rgba(110,168,255,0.12); border: 1px solid rgba(110,168,255,0.3); padding: 3px 9px; border-radius: 999px;">语音助手 · AI</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; margin-top: 16px;">
+              <div style="position: relative; flex-shrink: 0; animation: bob 3.4s ease-in-out infinite;">
+                <div style="position: relative; width: 76px; height: 76px; border-radius: 26px; background: linear-gradient(160deg, #86b8ff, #5a85e6); box-shadow: 0 8px 22px rgba(110,168,255,0.28); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;">
+                  <div style="display: flex; gap: 13px;">
+                    <span style="width: 11px; height: 11px; border-radius: 50%; background: #0a2350; animation: blink 4.6s infinite;"></span>
+                    <span style="width: 11px; height: 11px; border-radius: 50%; background: #0a2350; animation: blink 4.6s infinite;"></span>
+                  </div>
+                  <span style="width: 15px; height: 15px; border-radius: 50%; background: #0a2350; transform-origin: center; animation: talk 0.5s ease-in-out infinite;"></span>
+                </div>
+                <span style="position: absolute; top: 25px; left: -5px; width: 8px; height: 22px; border-radius: 6px; background: #5a85e6;"></span>
+                <span style="position: absolute; top: 25px; right: -5px; width: 8px; height: 22px; border-radius: 6px; background: #5a85e6;"></span>
+              </div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 8px;">
+                  <span style="width: 7px; height: 7px; border-radius: 50%; background: #6ea8ff; animation: pulseDot 1s ease-in-out infinite;"></span>
+                  <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: #6ea8ff;">正在播放 · SPEAKING</span>
+                </div>
+                <div style="display: flex; align-items: flex-end; gap: 3px; height: 30px; margin-bottom: 10px;">{{ eqAssistantBig }}</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <button style="cursor: pointer; flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: rgba(110,168,255,0.2); border: 1px solid rgba(110,168,255,0.35); color: #bcd6ff; font-size: 11px; display: flex; align-items: center; justify-content: center;">▶</button>
+                  <div style="flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.1); position: relative;"><span style="position: absolute; left: 0; top: 0; height: 100%; width: 40%; background: #6ea8ff; border-radius: 4px;"></span></div>
+                  <span style="font-size: 10.5px; color: #9aa6b4; font-family: ui-monospace, monospace;">0:09 / 0:22</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- ===== CONVERSATION STREAM (fixed height, scrolls) ===== -->
+        <section style="position: relative; background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 22px 24px 12px; flex: 1; min-height: 0; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div>
+            <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; color: #4fe0bf; font-weight: 600;">Conversation</div>
+            <div style="font-size: 17px; font-weight: 600; margin-top: 4px;">对话记录</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 9px; height: 9px; border-radius: 50%; background: #4fe0bf;"></span><span style="font-size: 12px; color: #9aa6b4;">你</span></div>
+            <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 9px; height: 9px; border-radius: 50%; background: #6ea8ff;"></span><span style="font-size: 12px; color: #9aa6b4;">语音助手</span></div>
+            <span style="font-size: 11.5px; color: #8391a0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); padding: 4px 10px; border-radius: 999px;">7 轮</span>
+          </div>
+        </div>
+
+        <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 18px; padding: 18px 2px 4px; overflow-y: auto;">
+          <sc-for list="{{ turns }}" as="t" hint-placeholder-count="5">
+
+            <!-- USER TURN (right / teal) -->
+            <sc-if value="{{ t.isUser }}">
+              <div style="display: flex; justify-content: flex-end;">
+                <div style="max-width: 76%;">
+                  <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="font-size: 11px; color: #7c8b9a; font-family: ui-monospace, monospace;">{{ t.time }}</span>
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #4fe0bf;">你 · YOU</span>
+                  </div>
+                  <div style="background: rgba(79,224,191,0.11); border: 1px solid rgba(79,224,191,0.3); color: #eafcf6; padding: 12px 15px; border-radius: 16px 16px 5px 16px; font-size: 14.5px; line-height: 1.5;">{{ t.text }}</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ASSISTANT TURN (left / blue) -->
+            <sc-if value="{{ t.isAssistant }}">
+              <div style="display: flex; justify-content: flex-start;">
+                <div style="max-width: 82%;">
+                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #6ea8ff;">语音助手 · ASSISTANT</span>
+                    <span style="font-size: 11px; color: #7c8b9a; font-family: ui-monospace, monospace;">{{ t.time }}</span>
+                  </div>
+                  <div style="background: rgba(110,168,255,0.10); border: 1px solid rgba(110,168,255,0.26); color: #eaf1ff; padding: 12px 15px; border-radius: 16px 16px 16px 5px; font-size: 14.5px; line-height: 1.5;">
+                    <div>{{ t.text }}</div>
+                    <sc-if value="{{ t.hasAudio }}">
+                      <div style="margin-top: 12px; border-top: 1px solid rgba(110,168,255,0.18); padding-top: 11px;">
+                        <div style="display: flex; align-items: center; gap: 11px;">
+                          <sc-if value="{{ t.hasWave }}">
+                            <div style="display: flex; align-items: flex-end; gap: 3px; height: 22px;">{{ eqAssistant }}</div>
+                          </sc-if>
+                          <button style="cursor: pointer; flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: rgba(110,168,255,0.2); border: 1px solid rgba(110,168,255,0.35); color: #bcd6ff; font-size: 12px; display: flex; align-items: center; justify-content: center;">▶</button>
+                          <div style="flex: 1; height: 4px; border-radius: 4px; background: rgba(255,255,255,0.1); position: relative;"><span style="position: absolute; left: 0; top: 0; height: 100%; width: 8%; background: #6ea8ff; border-radius: 4px;"></span></div>
+                          <span style="font-size: 11.5px; color: #9aa6b4; font-family: ui-monospace, monospace;">{{ t.dur }}</span>
+                        </div>
+                        <div style="font-size: 11.5px; color: #7c8b9a; margin-top: 8px;">{{ t.audioMeta }}</div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+          </sc-for>
+        </div>
+      </section>
+
+      </div>
+
+      <!-- ===== CONTROLS COLUMN ===== -->
+      <div data-role="rightcol" style="display: flex; flex-direction: column; gap: 18px;">
+
+        <!-- SESSION CONTROL -->
+        <section style="position: relative; background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 20px;">
+          <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; color: #4fe0bf; font-weight: 600;">Session</div>
+          <div style="font-size: 17px; font-weight: 600; margin-top: 4px; margin-bottom: 16px;">会话控制</div>
+
+          <!-- primary action -->
+          <button onClick="{{ toggleConn }}" style="cursor: pointer; width: 100%; background: #4fe0bf; color: #06231c; border: none; font-weight: 700; font-size: 15px; padding: 14px; border-radius: 12px;">{{ connectLabel }}</button>
+
+          <!-- secondary: mic toggle -->
+          <button onClick="{{ toggleMic }}" style="cursor: pointer; width: 100%; margin-top: 10px; background: rgba(255,255,255,0.05); color: #e8edf2; border: 1px solid rgba(255,255,255,0.14); font-weight: 600; font-size: 14px; padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: {{ micDot }};"></span>{{ micLabel }}
+          </button>
+
+          <!-- weak/destructive text action -->
+          <div style="display: flex; justify-content: center; margin-top: 14px;">
+            <button style="cursor: pointer; background: none; border: none; color: #8391a0; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px;">清空对话历史</button>
+          </div>
+        </section>
+
+        <!-- DEVICES -->
+        <section style="background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 20px;">
+          <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; color: #4fe0bf; font-weight: 600; margin-bottom: 14px;">Devices · 设备</div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <span style="font-size: 12.5px; color: #8391a0;">输入</span>
+            <span style="font-size: 13px; color: #dbe3ec; text-align: right;">MacBook Pro麦克风</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 0;">
+            <span style="font-size: 12.5px; color: #8391a0;">输出</span>
+            <span style="font-size: 13px; color: #dbe3ec; text-align: right;">MacBook Pro扬声器</span>
+          </div>
+        </section>
+
+        <!-- INSTRUCTIONS / SYSTEM PROMPT -->
+        <section style="background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; padding: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+            <div>
+              <div style="font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; color: #4fe0bf; font-weight: 600;">Instructions</div>
+              <div style="font-size: 15px; font-weight: 600; margin-top: 4px;">系统提示词</div>
+            </div>
+            <span style="font-size: 11px; color: #8391a0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); padding: 3px 9px; border-radius: 999px;">System prompt</span>
+          </div>
+          <textarea style="width: 100%; height: 108px; resize: vertical; background: #0a0f16; border: 1px solid rgba(255,255,255,0.12); color: #cfd8e2; font-size: 13px; line-height: 1.55; padding: 11px 13px; border-radius: 10px; font-family: inherit;">You are a concise, helpful voice assistant. Keep replies natural and brief unless the user asks for detail.</textarea>
+        </section>
+
+        <!-- ADVANCED (collapsed) -->
+        <section style="position: relative; background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; overflow: hidden;">
+          <button onClick="{{ toggleAdvanced }}" style="cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: space-between; background: none; border: none; color: #e8edf2; padding: 18px 20px; font-size: 14.5px; font-weight: 600;">
+            <span>高级设置 · Advanced</span>
+            <span style="color: #8391a0; font-size: 13px;">{{ advChevron }}</span>
+          </button>
+          <sc-if value="{{ showAdvanced }}">
+            <div style="padding: 0 20px 20px;">
+              <label style="display: block; font-size: 12px; color: #8391a0; margin-bottom: 7px;">WebSocket URL</label>
+              <input value="wss://183.179.202.82:8003/v1/realtime" style="width: 100%; background: #0a0f16; border: 1px solid rgba(255,255,255,0.12); color: #cfd8e2; font-family: ui-monospace, monospace; font-size: 12.5px; padding: 10px 12px; border-radius: 9px;">
+              <div style="display: flex; justify-content: space-between; padding: 16px 0 0; font-size: 13px;"><span style="color: #8391a0;">采样率 Sample rate</span><span style="color: #dbe3ec; font-family: ui-monospace, monospace;">16000 Hz</span></div>
+              <div style="display: flex; justify-content: space-between; padding: 10px 0 0; font-size: 13px;"><span style="color: #8391a0;">传输 Transport</span><span style="color: #dbe3ec;">OpenAI Realtime WS</span></div>
+            </div>
+          </sc-if>
+        </section>
+
+        <!-- DEVELOPER LOG (collapsed) -->
+        <section style="position: relative; background: #0f1620; border: 1px solid rgba(255,255,255,0.07); border-radius: 18px; overflow: hidden;">
+          <button onClick="{{ toggleLog }}" style="cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: space-between; background: none; border: none; color: #e8edf2; padding: 18px 20px; font-size: 14.5px; font-weight: 600;">
+            <span style="display: flex; align-items: center; gap: 10px;">开发者日志 · Log <span style="font-size: 11px; color: #8391a0; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 999px;">40</span></span>
+            <span style="color: #8391a0; font-size: 13px;">{{ logChevron }}</span>
+          </button>
+          <sc-if value="{{ showLog }}">
+            <div style="padding: 0 20px 16px; display: flex; flex-direction: column; gap: 10px; max-height: 260px; overflow-y: auto;">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                <div style="background: #0a0f16; border: 1px solid rgba(255,255,255,0.06); border-radius: 9px; padding: 10px 12px;">
+                  <div style="font-family: ui-monospace, monospace; font-size: 11px; color: #7c8b9a;">{{ e.time }}</div>
+                  <div style="font-size: 12.5px; font-weight: 600; color: #cbd4de; margin-top: 3px;">{{ e.name }}</div>
+                  <div style="font-family: ui-monospace, monospace; font-size: 10.5px; color: #6a7684; margin-top: 2px; word-break: break-all;">{{ e.detail }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </section>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1360,&quot;height&quot;:1180},&quot;startConnected&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;演示状态&quot;},&quot;startDevMode&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;演示状态&quot;}}">
+class Component extends DCLogic {
+  state = {
+    connected: this.props.startConnected ?? true,
+    micOn: true,
+    showAdvanced: false,
+    showLog: this.props.startDevMode ?? false,
+  };
+
+  componentDidMount() {
+    this._sync = () => {
+      const l = document.querySelector('[data-role=leftcol]');
+      const r = document.querySelector('[data-role=rightcol]');
+      if (l && r) l.style.height = r.offsetHeight + 'px';
+    };
+    requestAnimationFrame(this._sync);
+    const r = document.querySelector('[data-role=rightcol]');
+    if (window.ResizeObserver && r) {
+      this._ro = new ResizeObserver(() => this._sync());
+      this._ro.observe(r);
+    }
+    window.addEventListener('resize', this._sync);
+  }
+
+  componentDidUpdate() {
+    if (this._sync) requestAnimationFrame(this._sync);
+  }
+
+  componentWillUnmount() {
+    if (this._ro) this._ro.disconnect();
+    if (this._sync) window.removeEventListener('resize', this._sync);
+  }
+
+  eq(color, h) {
+    const bars = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    return React.createElement(
+      'div',
+      { style: { display: 'flex', alignItems: 'flex-end', gap: '3px', height: (h || 20) + 'px' } },
+      bars.map((i) =>
+        React.createElement('span', {
+          key: i,
+          style: {
+            width: '3px', height: '100%', display: 'block', borderRadius: '2px',
+            background: color, transformOrigin: 'bottom',
+            animation: 'eq 0.9s ease-in-out infinite',
+            animationDelay: (-i * 0.13) + 's',
+          },
+        })
+      )
+    );
+  }
+
+  renderVals() {
+    const s = this.state;
+    const raw = [
+      { role: 'user', time: '16:31:18', text: 'Could you introduce yourself?' },
+      { role: 'assistant', time: '16:31:23', text: "Hi there! I'm your concise, helpful voice assistant, ready to answer questions or help you out.", hasAudio: true, dur: '0:05', audioMeta: '35 段音频 · 5.7s' },
+      { role: 'user', time: '16:31:32', text: 'I want you to introduce' },
+      { role: 'user', time: '16:31:34', text: 'I want you to introduce about the city Tokyo.' },
+      { role: 'user', time: '16:31:49', text: 'Could you introduce' },
+      { role: 'user', time: '16:31:52', text: 'Could you introduce some of the food in Tokyo?' },
+      { role: 'assistant', time: '16:32:04', text: 'You should definitely try authentic sushi at Tsukiji Outer Market or some hearty ramen from a local shop, as they are iconic Tokyo experiences.', hasAudio: true, hasWave: true, dur: '0:22', audioMeta: '55 段音频 · 8.9s · 峰值 63%' },
+    ];
+    const turns = raw.map((t) => ({ ...t, isUser: t.role === 'user', isAssistant: t.role === 'assistant' }));
+
+    const events = [
+      { time: '16:32:31', name: 'socket.close', detail: 'wss://183.179.202.82:8003/v1/realtime' },
+      { time: '16:31:59', name: 'response.done', detail: 'event_4d1c6242ae5c445d8e1a312ef5caac07' },
+      { time: '16:31:59', name: 'response.output_audio.done', detail: 'event_072d8fa023b242188701514f5037af4e' },
+      { time: '16:31:59', name: 'response.output_audio.delta', detail: 'event_6f5cf0dbdc874deea50d8c5ad46471f9' },
+    ];
+
+    return {
+      turns, events,
+      connected: s.connected,
+      disconnected: !s.connected,
+      micOn: s.micOn,
+      listening: s.connected && s.micOn,
+      showAdvanced: s.showAdvanced,
+      showLog: s.showLog,
+      micStatus: s.micOn ? '采集中' : '空闲 idle',
+      micDot: s.micOn ? '#4fe0bf' : '#6a7684',
+      connectLabel: s.connected ? '断开连接' : '连接服务器',
+      micLabel: s.micOn ? '停止麦克风' : '启动浏览器麦克风',
+      advChevron: s.showAdvanced ? '收起 ▾' : '展开 ▸',
+      logChevron: s.showLog ? '收起 ▾' : '展开 ▸',
+      eqUser: this.eq('#4fe0bf'),
+      eqAssistant: this.eq('#6ea8ff'),
+      eqUserBig: this.eq('#4fe0bf', 24),
+      eqAssistantBig: this.eq('#6ea8ff', 30),
+      toggleConn: () => this.setState((p) => ({ connected: !p.connected })),
+      toggleMic: () => this.setState((p) => ({ micOn: !p.micOn })),
+      toggleAdvanced: () => this.setState((p) => ({ showAdvanced: !p.showAdvanced })),
+      toggleLog: () => this.setState((p) => ({ showLog: !p.showLog })),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   DEFAULT_WS_URL,
   PcmPlayer,
@@ -66,6 +66,28 @@ function normalizeRealtimeWsUrl(value) {
   } catch {
     return sameOriginUrl;
   }
+}
+
+function textFromContent(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(textFromContent).filter(Boolean).join("");
+  if (typeof value !== "object") return "";
+
+  if (typeof value.text === "string") return value.text;
+  if (typeof value.transcript === "string") return value.transcript;
+  if (typeof value.delta === "string") return value.delta;
+  return textFromContent(value.content) || textFromContent(value.output);
+}
+
+function textFromEvent(event) {
+  return (
+    textFromContent(event.delta) ||
+    textFromContent(event.text) ||
+    textFromContent(event.transcript) ||
+    textFromContent(event.item?.content) ||
+    textFromContent(event.response?.output)
+  );
 }
 
 async function getRuntimeDefaultWsConfig() {
@@ -215,8 +237,9 @@ export default function Page() {
   const liveUserRef = useRef("");
   const outputAudioRef = useRef(outputAudio);
   const assistantTranscriptRef = useRef("");
-  const assistantHistoryPushedRef = useRef(false);
   const assistantAudioChunksRef = useRef([]);
+  const userTurnKeyRef = useRef("");
+  const assistantTurnKeyRef = useRef("");
   const audioUrlsRef = useRef([]);
   const leftColumnRef = useRef(null);
   const rightColumnRef = useRef(null);
@@ -315,11 +338,10 @@ export default function Page() {
     liveAssistant || (assistantSpeaking ? "Assistant speech is streaming back from the server." : "Returned speech audio will appear here when the server responds.");
 
   function setOutputAudioState(updater) {
-    setOutputAudio((current) => {
-      const next = typeof updater === "function" ? updater(current) : updater;
-      outputAudioRef.current = next;
-      return next;
-    });
+    const next = typeof updater === "function" ? updater(outputAudioRef.current) : updater;
+    outputAudioRef.current = next;
+    setOutputAudio(next);
+    return next;
   }
 
   function resetOutputAudio(active = false) {
@@ -364,18 +386,66 @@ export default function Page() {
     setEvents((current) => [{ id: makeId("event"), type, detail, time: nowLabel() }, ...current].slice(0, 40));
   }
 
-  function pushHistory(role, text, meta = {}) {
-    if (!text.trim()) return;
-    setHistory((current) => [
-      ...current,
-      {
-        id: makeId("turn"),
+  function upsertHistory(key, role, text, meta = {}) {
+    const cleanText = String(text || "").trim();
+    if (!key || (!cleanText && !meta.audioChunks && !meta.pending)) return;
+
+    setHistory((current) => {
+      const index = current.findIndex((item) => item.key === key);
+      const existing = index >= 0 ? current[index] : null;
+      const next = {
+        ...(existing || { id: makeId("turn"), key, role, time: nowLabel() }),
         role,
-        text: text.trim(),
-        time: nowLabel(),
+        text: cleanText || existing?.text || (meta.audioChunks ? "Assistant speech audio received." : "…"),
         ...meta,
-      },
-    ]);
+      };
+
+      if (index < 0) return [...current, next];
+
+      const updated = [...current];
+      updated[index] = next;
+      return updated;
+    });
+  }
+
+  function getUserTurnKey(event = {}) {
+    const key = event.item_id || event.item?.id || userTurnKeyRef.current || makeId("user-turn");
+    userTurnKeyRef.current = key;
+    return key;
+  }
+
+  function getAssistantTurnKey(event = {}) {
+    const key =
+      event.response_id ||
+      event.response?.id ||
+      event.item_id ||
+      event.item?.id ||
+      assistantTurnKeyRef.current ||
+      makeId("assistant-turn");
+    assistantTurnKeyRef.current = key;
+    return key;
+  }
+
+  function audioHistoryMeta(audio = outputAudioRef.current, overrides = {}) {
+    return {
+      kind: audio.chunks ? "speech response" : "response",
+      audioChunks: audio.chunks,
+      audioDuration: audio.samples / TARGET_SAMPLE_RATE,
+      audioUrl: audio.url,
+      audioBytes: audio.bytes,
+      audioPeak: audio.peak,
+      ...overrides,
+    };
+  }
+
+  function updateAssistantHistory(event = {}, text = assistantTranscriptRef.current, meta = {}) {
+    const audio = outputAudioRef.current;
+    upsertHistory(
+      getAssistantTurnKey(event),
+      "assistant",
+      text || (audio.chunks ? "Assistant speech audio received." : "正在生成回复…"),
+      audioHistoryMeta(audio, meta)
+    );
   }
 
   function ensurePlayer() {
@@ -442,39 +512,93 @@ export default function Page() {
             setSessionLabel("session ready");
             break;
           case "input_audio_buffer.speech_started":
+            userTurnKeyRef.current = event.item_id || makeId("user-turn");
+            setLiveUser("");
+            liveUserRef.current = "";
             setLiveAssistant("");
             setAssistantSpeaking(false);
             resetOutputAudio(false);
             setMicState("listening");
             break;
+          case "input_audio_buffer.speech_stopped":
+            setMicState(micRef.current ? "live" : "idle");
+            break;
           case "conversation.item.input_audio_transcription.delta":
             setLiveUser((current) => {
               const next = `${current}${event.delta ?? ""}`;
               liveUserRef.current = next;
+              upsertHistory(getUserTurnKey(event), "user", next, { kind: "transcript", pending: true });
               return next;
             });
             break;
           case "conversation.item.input_audio_transcription.completed": {
             const transcript = event.transcript ?? "";
             const text = transcript || liveUserRef.current;
-            pushHistory("user", text, { kind: "transcript" });
+            upsertHistory(getUserTurnKey(event), "user", text, {
+              kind: "transcript",
+              pending: false,
+              audioDuration: event.usage?.seconds,
+            });
             setLiveUser("");
             liveUserRef.current = "";
+            userTurnKeyRef.current = "";
+            break;
+          }
+          case "conversation.item.input_audio_transcription.failed": {
+            const detail = event.error?.message || "Speech transcription failed.";
+            upsertHistory(getUserTurnKey(event), "user", detail, { kind: "transcript error", pending: false });
+            setLiveUser("");
+            liveUserRef.current = "";
+            userTurnKeyRef.current = "";
+            break;
+          }
+          case "conversation.item.created": {
+            const item = event.item || {};
+            const text = textFromContent(item.content);
+            if (item.role === "user" && text) {
+              upsertHistory(item.id || makeId("user-turn"), "user", text, { kind: "text input", pending: false });
+            } else if (item.role === "assistant" && text) {
+              upsertHistory(item.id || makeId("assistant-turn"), "assistant", text, { kind: "text response", pending: false });
+            }
             break;
           }
           case "response.created":
-            setAssistantSpeaking(true);
-            setLiveAssistant("");
-            assistantTranscriptRef.current = "";
-            assistantHistoryPushedRef.current = false;
-            assistantAudioChunksRef.current = [];
-            resetOutputAudio(true);
+            {
+              const responseKey = event.response?.id || assistantTurnKeyRef.current || makeId("assistant-turn");
+              const sameResponse = assistantTurnKeyRef.current === responseKey;
+              assistantTurnKeyRef.current = responseKey;
+              if (!sameResponse) {
+                setLiveAssistant("");
+                assistantTranscriptRef.current = "";
+                assistantAudioChunksRef.current = [];
+                resetOutputAudio(true);
+              } else {
+                setOutputAudioState((current) => ({ ...current, active: true }));
+              }
+              setAssistantSpeaking(true);
+              updateAssistantHistory(event, assistantTranscriptRef.current || "正在生成回复…", { pending: true });
+            }
             break;
+          case "response.text.delta":
+          case "response.output_text.delta":
+          case "response.audio_transcript.delta":
+          case "response.output_audio_transcript.delta": {
+            const delta = textFromEvent(event);
+            if (!delta) break;
+            const next = `${assistantTranscriptRef.current}${delta}`;
+            assistantTranscriptRef.current = next;
+            setLiveAssistant(next);
+            updateAssistantHistory(event, next, { pending: true });
+            break;
+          }
+          case "response.text.done":
+          case "response.output_text.done":
           case "response.audio_transcript.done":
           case "response.output_audio_transcript.done": {
-            const transcript = event.transcript ?? "";
+            const transcript = textFromEvent(event);
             setLiveAssistant(transcript);
             assistantTranscriptRef.current = transcript;
+            updateAssistantHistory(event, transcript, { pending: outputAudioRef.current.active });
             break;
           }
           case "response.audio.delta":
@@ -484,7 +608,7 @@ export default function Page() {
             if (event.delta) {
               assistantAudioChunksRef.current.push(event.delta);
             }
-            setOutputAudioState((current) => ({
+            const nextAudio = setOutputAudioState((current) => ({
               ...current,
               chunks: current.chunks + 1,
               bytes: current.bytes + stats.bytes,
@@ -494,37 +618,34 @@ export default function Page() {
               active: true,
               lastUpdated: nowLabel(),
             }));
+            updateAssistantHistory(event, assistantTranscriptRef.current, audioHistoryMeta(nextAudio, { pending: true }));
             await playerRef.current?.enqueue?.(event.delta ?? "");
             break;
           }
           case "response.audio.done":
-          case "response.output_audio.done":
+          case "response.output_audio.done": {
             setAssistantSpeaking(false);
             const completedAudioUrl = outputAudioRef.current.url || createAssistantAudioUrl();
-            setOutputAudioState((current) => ({
+            const nextAudio = setOutputAudioState((current) => ({
               ...current,
               active: false,
               level: 0,
               url: completedAudioUrl,
             }));
+            updateAssistantHistory(event, assistantTranscriptRef.current, audioHistoryMeta(nextAudio, { pending: false }));
             break;
+          }
           case "response.done": {
             setAssistantSpeaking(false);
             const audioUrl = outputAudioRef.current.url || createAssistantAudioUrl();
-            setOutputAudioState((current) => ({ ...current, active: false, level: 0, url: audioUrl }));
-            if (!assistantHistoryPushedRef.current) {
-              const audio = { ...outputAudioRef.current, url: audioUrl };
-              const transcript = assistantTranscriptRef.current || (audio.chunks ? "Assistant speech audio received." : "");
-              pushHistory("assistant", transcript, {
-                kind: audio.chunks ? "speech response" : "response",
-                audioChunks: audio.chunks,
-                audioDuration: audio.samples / TARGET_SAMPLE_RATE,
-                audioUrl,
-                audioBytes: audio.bytes,
-                audioPeak: audio.peak,
-              });
-              assistantHistoryPushedRef.current = true;
+            const nextAudio = setOutputAudioState((current) => ({ ...current, active: false, level: 0, url: audioUrl }));
+            const responseText = textFromEvent(event);
+            if (responseText) {
+              assistantTranscriptRef.current = responseText;
+              setLiveAssistant(responseText);
             }
+            updateAssistantHistory(event, responseText || assistantTranscriptRef.current, audioHistoryMeta(nextAudio, { pending: false }));
+            assistantTurnKeyRef.current = "";
             break;
           }
           case "error":
@@ -569,8 +690,9 @@ export default function Page() {
     setLiveUser("");
     setLiveAssistant("");
     assistantTranscriptRef.current = "";
-    assistantHistoryPushedRef.current = false;
     assistantAudioChunksRef.current = [];
+    userTurnKeyRef.current = "";
+    assistantTurnKeyRef.current = "";
     resetOutputAudio(false);
   }
 
@@ -626,8 +748,9 @@ export default function Page() {
     setLiveAssistant("");
     liveUserRef.current = "";
     assistantTranscriptRef.current = "";
-    assistantHistoryPushedRef.current = false;
     assistantAudioChunksRef.current = [];
+    userTurnKeyRef.current = "";
+    assistantTurnKeyRef.current = "";
     audioUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     audioUrlsRef.current = [];
     resetOutputAudio(false);
