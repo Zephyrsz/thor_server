@@ -13,6 +13,7 @@ const realtimeWsUrl = process.env.REALTIME_WS_URL || "";
 const backendWsUrl = process.env.BACKEND_WS_URL || "";
 const backendTlsRejectUnauthorized = process.env.BACKEND_TLS_REJECT_UNAUTHORIZED !== "0";
 const useHttps = Boolean(certFile && keyFile);
+const realtimeProxyUrl = backendWsUrl || realtimeWsUrl;
 
 if (certFile || keyFile) {
   if (!certFile || !keyFile) {
@@ -28,7 +29,7 @@ if (certFile || keyFile) {
 
 const app = next({ dev: false, hostname: host, port });
 const handle = app.getRequestHandler();
-const backendWsTarget = backendWsUrl ? new URL(backendWsUrl) : null;
+const backendWsTarget = realtimeProxyUrl ? new URL(realtimeProxyUrl) : null;
 
 await app.prepare();
 
@@ -115,8 +116,8 @@ server.listen(port, host, () => {
   const protocol = useHttps ? "https" : "http";
   console.log(`UI ready on ${protocol}://${host}:${port}`);
   console.log(`Realtime websocket: ${realtimeWsUrl}`);
-  if (backendWsUrl) {
-    console.log(`Backend websocket: ${backendWsUrl}`);
+  if (backendWsTarget) {
+    console.log(`Realtime proxy target: ${backendWsTarget.toString()}`);
     console.log(
       `Backend TLS verification: ${backendTlsRejectUnauthorized ? "enabled" : "disabled"}`
     );

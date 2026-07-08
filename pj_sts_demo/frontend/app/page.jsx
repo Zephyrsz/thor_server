@@ -68,15 +68,23 @@ function normalizeRealtimeWsUrl(value) {
   }
 }
 
-async function getRuntimeDefaultWsUrl() {
+async function getRuntimeDefaultWsConfig() {
+  const sameOriginUrl = getSameOriginRealtimeWsUrl();
+
   try {
     const response = await fetch(CONFIG_URL, { cache: "no-store" });
-    if (!response.ok) return getSameOriginRealtimeWsUrl();
+    if (!response.ok) {
+      return { connectionUrl: sameOriginUrl, displayUrl: sameOriginUrl };
+    }
 
     const config = await response.json();
-    return normalizeRealtimeWsUrl(config.realtimeWsUrl);
+    const connectionUrl = normalizeRealtimeWsUrl(config.realtimeWsUrl);
+    return {
+      connectionUrl,
+      displayUrl: config.configuredRealtimeWsUrl || connectionUrl,
+    };
   } catch {
-    return getSameOriginRealtimeWsUrl();
+    return { connectionUrl: sameOriginUrl, displayUrl: sameOriginUrl };
   }
 }
 
@@ -167,6 +175,7 @@ function AudioPlayback({ url, duration, chunks, active, peak }) {
 
 export default function Page() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_WS_URL);
+  const [displayServerUrl, setDisplayServerUrl] = useState(DEFAULT_WS_URL);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [instructions, setInstructions] = useState(
     "You are a concise, helpful voice assistant. Keep replies natural and brief unless the user asks for detail."
@@ -217,22 +226,25 @@ export default function Page() {
     let active = true;
 
     async function loadSavedSettings() {
-      const runtimeDefaultWsUrl = await getRuntimeDefaultWsUrl();
+      const runtimeDefaultWsConfig = await getRuntimeDefaultWsConfig();
       if (!active) return;
 
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (!stored) {
-        setServerUrl(runtimeDefaultWsUrl);
+        setServerUrl(runtimeDefaultWsConfig.connectionUrl);
+        setDisplayServerUrl(runtimeDefaultWsConfig.displayUrl);
         setSettingsLoaded(true);
         return;
       }
 
       try {
         const parsed = JSON.parse(stored);
-        setServerUrl(runtimeDefaultWsUrl);
+        setServerUrl(runtimeDefaultWsConfig.connectionUrl);
+        setDisplayServerUrl(runtimeDefaultWsConfig.displayUrl);
         if (parsed.instructions) setInstructions(parsed.instructions);
       } catch {
-        setServerUrl(runtimeDefaultWsUrl);
+        setServerUrl(runtimeDefaultWsConfig.connectionUrl);
+        setDisplayServerUrl(runtimeDefaultWsConfig.displayUrl);
       }
 
       setSettingsLoaded(true);
@@ -635,7 +647,7 @@ export default function Page() {
 
         <section className="status-strip" aria-label="Session overview">
           <Metric label="端点 · Endpoint" mono>
-            {serverUrl || "loading"}
+            {displayServerUrl || serverUrl || "loading"}
           </Metric>
           <Metric label="会话 · Session">{sessionLabel}</Metric>
           <Metric label="麦克风 · Mic">{micLive ? "采集中" : micState}</Metric>
@@ -819,7 +831,11 @@ export default function Page() {
               {showAdvanced ? (
                 <div className="collapse-body">
                   <label>
-                    <span>WebSocket URL</span>
+                    <span>Remote realtime URL</span>
+                    <input value={displayServerUrl || serverUrl} readOnly spellCheck="false" />
+                  </label>
+                  <label>
+                    <span>Browser WebSocket URL</span>
                     <input value={serverUrl} readOnly spellCheck="false" />
                   </label>
                   <div className="setting-row">
