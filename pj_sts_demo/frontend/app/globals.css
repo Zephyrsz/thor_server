@@ -96,6 +96,45 @@ audio {
   flex-wrap: wrap;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.language-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.language-switch button {
+  min-width: 58px;
+  cursor: pointer;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.language-switch button:hover {
+  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.language-switch button.active {
+  background: rgba(79, 224, 191, 0.16);
+  color: var(--user-soft);
+}
+
 .topbar h1 {
   margin-top: 10px;
   color: var(--text);
@@ -216,7 +255,8 @@ audio {
 .live-card {
   position: relative;
   overflow: hidden;
-  padding: 18px 20px;
+  min-height: 220px;
+  padding: 20px;
 }
 
 .live-card-user {
@@ -289,14 +329,62 @@ audio {
 }
 
 .live-card-body {
-  display: flex;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
-  margin-top: 16px;
+  gap: 18px;
+  margin-top: 18px;
 }
 
 .live-card-body-user {
-  flex-direction: row-reverse;
+  grid-template-columns: minmax(0, 1fr) 112px;
+}
+
+.live-card-body-user .role-stage {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.live-card-body-user .live-copy {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.live-card-body-stage {
+  min-height: 132px;
+}
+
+.role-stage {
+  position: relative;
+  display: flex;
+  width: 112px;
+  height: 132px;
+  align-items: center;
+  justify-content: center;
+  align-self: start;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.live-card-user .role-stage {
+  background: radial-gradient(circle at 55% 42%, rgba(79, 224, 191, 0.18), rgba(79, 224, 191, 0.04) 58%, transparent 76%);
+}
+
+.live-card-assistant .role-stage {
+  background: radial-gradient(circle at 45% 42%, rgba(110, 168, 255, 0.2), rgba(110, 168, 255, 0.045) 58%, transparent 76%);
+}
+
+.role-stage .role-badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.role-stage .mascot {
+  margin-top: 22px;
 }
 
 .live-copy {
@@ -1023,6 +1111,11 @@ audio {
     padding: 24px 16px 40px;
   }
 
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .topbar h1 {
     font-size: 28px;
     white-space: normal;
@@ -1033,14 +1126,25 @@ audio {
     grid-template-columns: 1fr;
   }
 
-  .live-card-body,
-  .live-card-body-user {
-    align-items: flex-start;
-    flex-direction: column;
+  .live-card {
+    min-height: auto;
   }
 
-  .mascot {
-    align-self: center;
+  .live-card-body,
+  .live-card-body-user {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .live-card-body-user .role-stage,
+  .live-card-body-user .live-copy {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .role-stage {
+    height: 128px;
+    width: 100%;
   }
 
   .conversation-head,

@@ -13,6 +13,353 @@ import {
 
 const STORAGE_KEY = "realtime-voice-console";
 const CONFIG_URL = "/api/config";
+const DEFAULT_LANGUAGE = "zh";
+const DEFAULT_INSTRUCTIONS =
+  "You are a concise, helpful voice assistant. Keep replies natural and brief unless the user asks for detail.";
+const LANGUAGE_OPTIONS = [
+  { code: "zh", label: "中文", htmlLang: "zh-CN" },
+  { code: "ja", label: "日本語", htmlLang: "ja" },
+  { code: "en", label: "English", htmlLang: "en" },
+];
+
+const TRANSLATIONS = {
+  zh: {
+    title: "实时语音 AI",
+    languageLabel: "页面语言",
+    aria: {
+      sessionOverview: "会话概览",
+      realtimeInteraction: "实时交互",
+    },
+    status: {
+      connected: "已连接 CONNECTED",
+      offline: "未连接 OFFLINE",
+      endpoint: "端点 · Endpoint",
+      session: "会话 · Session",
+      mic: "麦克风 · Mic",
+      output: "输出音频 · Output",
+      loading: "加载中",
+      capturing: "采集中",
+      waiting: "等待中",
+      outputReceived: "received",
+    },
+    sessionLabel: {
+      notConnected: "未连接",
+      sessionActive: "会话连接中",
+      sessionReady: "会话就绪",
+    },
+    micState: {
+      idle: "空闲",
+      connecting: "连接中",
+      listening: "聆听中",
+      live: "采集中",
+      error: "错误",
+    },
+    live: {
+      userKicker: "Live transcript",
+      userTitle: "Listening for speech",
+      assistantKicker: "Speech output",
+      assistantTitle: "Assistant audio stream",
+      userRole: "你 · YOU",
+      assistantRole: "语音助手 · AI",
+      userState: "正在聆听 · LISTENING",
+      assistantState: "正在播放 · SPEAKING",
+      userPlaceholder: "启动浏览器麦克风，自然说话，实时转写会显示在这里。",
+      userListening: "正在接收浏览器麦克风输入…",
+      assistantPlaceholder: "服务器返回语音后，文本和音频会显示在这里。",
+      assistantSpeaking: "语音助手正在从服务器返回音频。",
+      inputLevel: "输入电平",
+    },
+    conversation: {
+      kicker: "Conversation",
+      title: "对话记录",
+      userLegend: "你",
+      assistantLegend: "语音助手",
+      turns: (count) => `${count} 轮`,
+      empty: "还没有完成的对话。",
+      assistantMeta: "语音助手 · ASSISTANT",
+    },
+    controls: {
+      sessionKicker: "Session",
+      sessionTitle: "会话控制",
+      connect: "连接服务器",
+      disconnect: "断开连接",
+      startMic: "启动浏览器麦克风",
+      stopMic: "停止麦克风",
+      clearHistory: "清空对话历史",
+      confirmClear: "清空当前对话历史？",
+    },
+    devices: {
+      title: "Devices · 设备",
+      input: "输入",
+      output: "输出",
+      microphone: "浏览器麦克风",
+      speakers: "浏览器扬声器",
+    },
+    instructions: {
+      kicker: "Instructions",
+      title: "系统提示词",
+      tag: "System prompt",
+    },
+    advanced: {
+      title: "高级设置 · Advanced",
+      expand: "展开 ▸",
+      collapse: "收起 ▾",
+      remoteUrl: "Remote realtime URL",
+      browserUrl: "Browser WebSocket URL",
+      sampleRate: "采样率 Sample rate",
+      transport: "传输 Transport",
+      transportValue: "OpenAI Realtime WS",
+    },
+    log: {
+      title: "开发者日志 · Log",
+      empty: "暂无事件。",
+    },
+    alerts: {
+      connection: "连接问题",
+      browserAudio: "浏览器音频",
+      browserAudioDetail: "请使用 HTTPS 或 localhost 打开页面，浏览器才能授权麦克风。",
+    },
+    errors: {
+      websocketFailed: "WebSocket 连接失败。",
+      websocketRequired: "请先连接 WebSocket，再启动麦克风。",
+      connectFailed: "无法连接到 WebSocket。",
+      micUnavailable: "当前浏览器不可用麦克风。",
+      micStartFailed: "无法启动麦克风。",
+      serverError: "服务器返回错误。",
+      transcriptionFailed: "语音转写失败。",
+    },
+    assistantGenerating: "正在生成回复…",
+    assistantAudioReceived: "已收到语音助手音频。",
+    audio: {
+      peak: (value) => `峰值 ${value}%`,
+      summary: (chunks, duration, bytes) => `${chunks} 段音频 · ${duration} · ${bytes}`,
+    },
+  },
+  ja: {
+    title: "リアルタイム音声 AI",
+    languageLabel: "ページ言語",
+    aria: {
+      sessionOverview: "セッション概要",
+      realtimeInteraction: "リアルタイム操作",
+    },
+    status: {
+      connected: "接続済み CONNECTED",
+      offline: "未接続 OFFLINE",
+      endpoint: "エンドポイント · Endpoint",
+      session: "セッション · Session",
+      mic: "マイク · Mic",
+      output: "出力音声 · Output",
+      loading: "読み込み中",
+      capturing: "収録中",
+      waiting: "待機中",
+      outputReceived: "受信済み",
+    },
+    sessionLabel: {
+      notConnected: "未接続",
+      sessionActive: "セッション接続中",
+      sessionReady: "セッション準備完了",
+    },
+    micState: {
+      idle: "待機中",
+      connecting: "接続中",
+      listening: "聞き取り中",
+      live: "収録中",
+      error: "エラー",
+    },
+    live: {
+      userKicker: "Live transcript",
+      userTitle: "音声を聞き取り中",
+      assistantKicker: "Speech output",
+      assistantTitle: "アシスタント音声ストリーム",
+      userRole: "あなた · YOU",
+      assistantRole: "音声アシスタント · AI",
+      userState: "聞き取り中 · LISTENING",
+      assistantState: "再生中 · SPEAKING",
+      userPlaceholder: "ブラウザのマイクを開始して話すと、文字起こしがここに表示されます。",
+      userListening: "ブラウザのマイク入力を受信中…",
+      assistantPlaceholder: "サーバーから返る音声とテキストがここに表示されます。",
+      assistantSpeaking: "アシスタント音声をサーバーから受信しています。",
+      inputLevel: "入力レベル",
+    },
+    conversation: {
+      kicker: "Conversation",
+      title: "会話履歴",
+      userLegend: "あなた",
+      assistantLegend: "音声アシスタント",
+      turns: (count) => `${count} ターン`,
+      empty: "完了した会話はまだありません。",
+      assistantMeta: "音声アシスタント · ASSISTANT",
+    },
+    controls: {
+      sessionKicker: "Session",
+      sessionTitle: "セッション操作",
+      connect: "サーバーに接続",
+      disconnect: "切断",
+      startMic: "ブラウザマイクを開始",
+      stopMic: "マイクを停止",
+      clearHistory: "会話履歴を消去",
+      confirmClear: "現在の会話履歴を消去しますか？",
+    },
+    devices: {
+      title: "Devices · デバイス",
+      input: "入力",
+      output: "出力",
+      microphone: "ブラウザマイク",
+      speakers: "ブラウザスピーカー",
+    },
+    instructions: {
+      kicker: "Instructions",
+      title: "システム指示",
+      tag: "System prompt",
+    },
+    advanced: {
+      title: "詳細設定 · Advanced",
+      expand: "展開 ▸",
+      collapse: "閉じる ▾",
+      remoteUrl: "Remote realtime URL",
+      browserUrl: "Browser WebSocket URL",
+      sampleRate: "サンプルレート Sample rate",
+      transport: "転送方式 Transport",
+      transportValue: "OpenAI Realtime WS",
+    },
+    log: {
+      title: "開発者ログ · Log",
+      empty: "イベントはまだありません。",
+    },
+    alerts: {
+      connection: "接続の問題",
+      browserAudio: "ブラウザ音声",
+      browserAudioDetail: "マイク許可には HTTPS または localhost で開いてください。",
+    },
+    errors: {
+      websocketFailed: "WebSocket 接続に失敗しました。",
+      websocketRequired: "マイクを開始する前に WebSocket に接続してください。",
+      connectFailed: "WebSocket に接続できませんでした。",
+      micUnavailable: "このブラウザではマイクを利用できません。",
+      micStartFailed: "マイクを開始できませんでした。",
+      serverError: "サーバーがエラーを返しました。",
+      transcriptionFailed: "音声認識に失敗しました。",
+    },
+    assistantGenerating: "応答を生成中…",
+    assistantAudioReceived: "アシスタント音声を受信しました。",
+    audio: {
+      peak: (value) => `ピーク ${value}%`,
+      summary: (chunks, duration, bytes) => `${chunks} 音声チャンク · ${duration} · ${bytes}`,
+    },
+  },
+  en: {
+    title: "Real-time speech AI",
+    languageLabel: "Page language",
+    aria: {
+      sessionOverview: "Session overview",
+      realtimeInteraction: "Realtime interaction",
+    },
+    status: {
+      connected: "CONNECTED",
+      offline: "OFFLINE",
+      endpoint: "Endpoint",
+      session: "Session",
+      mic: "Mic",
+      output: "Output audio",
+      loading: "loading",
+      capturing: "capturing",
+      waiting: "waiting",
+      outputReceived: "received",
+    },
+    sessionLabel: {
+      notConnected: "not connected",
+      sessionActive: "session active",
+      sessionReady: "session ready",
+    },
+    micState: {
+      idle: "idle",
+      connecting: "connecting",
+      listening: "listening",
+      live: "capturing",
+      error: "error",
+    },
+    live: {
+      userKicker: "Live transcript",
+      userTitle: "Listening for speech",
+      assistantKicker: "Speech output",
+      assistantTitle: "Assistant audio stream",
+      userRole: "You",
+      assistantRole: "Voice assistant · AI",
+      userState: "Listening",
+      assistantState: "Speaking",
+      userPlaceholder: "Start the browser microphone, speak naturally, and watch the transcript appear here.",
+      userListening: "Receiving browser microphone input…",
+      assistantPlaceholder: "Returned speech audio and text will appear here when the server responds.",
+      assistantSpeaking: "Assistant speech is streaming back from the server.",
+      inputLevel: "Input level",
+    },
+    conversation: {
+      kicker: "Conversation",
+      title: "History",
+      userLegend: "You",
+      assistantLegend: "Voice assistant",
+      turns: (count) => `${count} turns`,
+      empty: "No completed turns yet.",
+      assistantMeta: "Voice assistant · ASSISTANT",
+    },
+    controls: {
+      sessionKicker: "Session",
+      sessionTitle: "Session controls",
+      connect: "Connect server",
+      disconnect: "Disconnect",
+      startMic: "Start browser microphone",
+      stopMic: "Stop microphone",
+      clearHistory: "Clear conversation history",
+      confirmClear: "Clear the current conversation history?",
+    },
+    devices: {
+      title: "Devices",
+      input: "Input",
+      output: "Output",
+      microphone: "Browser microphone",
+      speakers: "Browser speakers",
+    },
+    instructions: {
+      kicker: "Instructions",
+      title: "System prompt",
+      tag: "System prompt",
+    },
+    advanced: {
+      title: "Advanced settings",
+      expand: "Expand ▸",
+      collapse: "Collapse ▾",
+      remoteUrl: "Remote realtime URL",
+      browserUrl: "Browser WebSocket URL",
+      sampleRate: "Sample rate",
+      transport: "Transport",
+      transportValue: "OpenAI Realtime WS",
+    },
+    log: {
+      title: "Developer log",
+      empty: "No events yet.",
+    },
+    alerts: {
+      connection: "Connection issue",
+      browserAudio: "Browser audio",
+      browserAudioDetail: "Use HTTPS or localhost so the browser can grant microphone access.",
+    },
+    errors: {
+      websocketFailed: "WebSocket connection failed.",
+      websocketRequired: "Connect to the websocket before starting the microphone.",
+      connectFailed: "Could not connect to the websocket.",
+      micUnavailable: "Microphone access is not available in this browser.",
+      micStartFailed: "Could not start the microphone.",
+      serverError: "The server returned an error.",
+      transcriptionFailed: "Speech transcription failed.",
+    },
+    assistantGenerating: "Generating a reply…",
+    assistantAudioReceived: "Assistant speech audio received.",
+    audio: {
+      peak: (value) => `Peak ${value}%`,
+      summary: (chunks, duration, bytes) => `${chunks} audio chunks · ${duration} · ${bytes}`,
+    },
+  },
+};
 
 function makeId(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -155,12 +502,12 @@ function Mascot({ role, active }) {
   );
 }
 
-function StatusPill({ state }) {
+function StatusPill({ state, labels }) {
   const connected = state === "connected";
   return (
     <div className={`status-pill ${connected ? "status-pill-connected" : ""}`}>
       <span className="status-dot" />
-      <span>{connected ? "已连接 CONNECTED" : "未连接 OFFLINE"}</span>
+      <span>{connected ? labels.connected : labels.offline}</span>
     </div>
   );
 }
@@ -174,7 +521,7 @@ function Metric({ label, children, mono = false }) {
   );
 }
 
-function AudioPlayback({ url, duration, chunks, active, peak }) {
+function AudioPlayback({ url, duration, chunks, active, peak, labels = TRANSLATIONS.zh.audio }) {
   return (
     <div className="inline-player">
       {url ? (
@@ -190,7 +537,7 @@ function AudioPlayback({ url, duration, chunks, active, peak }) {
         </>
       )}
       <span className="mono">{duration}</span>
-      {Number.isFinite(peak) ? <span className="player-meta">峰值 {Math.round(peak * 100)}%</span> : null}
+      {Number.isFinite(peak) ? <span className="player-meta">{labels.peak(Math.round(peak * 100))}</span> : null}
     </div>
   );
 }
@@ -198,10 +545,9 @@ function AudioPlayback({ url, duration, chunks, active, peak }) {
 export default function Page() {
   const [serverUrl, setServerUrl] = useState(DEFAULT_WS_URL);
   const [displayServerUrl, setDisplayServerUrl] = useState(DEFAULT_WS_URL);
+  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [instructions, setInstructions] = useState(
-    "You are a concise, helpful voice assistant. Keep replies natural and brief unless the user asks for detail."
-  );
+  const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS);
   const [socketState, setSocketState] = useState("disconnected");
   const [micState, setMicState] = useState("idle");
   const [micLevel, setMicLevel] = useState(0);
@@ -223,7 +569,7 @@ export default function Page() {
     lastUpdated: "",
     url: "",
   });
-  const [sessionLabel, setSessionLabel] = useState("not connected");
+  const [sessionLabel, setSessionLabel] = useState("notConnected");
   const [localAudio, setLocalAudio] = useState({
     inputLabel: "Browser microphone",
     outputLabel: "Browser speakers",
@@ -244,6 +590,8 @@ export default function Page() {
   const leftColumnRef = useRef(null);
   const rightColumnRef = useRef(null);
   const conversationRef = useRef(null);
+  const t = TRANSLATIONS[language] || TRANSLATIONS[DEFAULT_LANGUAGE];
+  const selectedLanguage = LANGUAGE_OPTIONS.find((option) => option.code === language) || LANGUAGE_OPTIONS[0];
 
   useEffect(() => {
     let active = true;
@@ -264,6 +612,9 @@ export default function Page() {
         const parsed = JSON.parse(stored);
         setServerUrl(runtimeDefaultWsConfig.connectionUrl);
         setDisplayServerUrl(runtimeDefaultWsConfig.displayUrl);
+        if (LANGUAGE_OPTIONS.some((option) => option.code === parsed.language)) {
+          setLanguage(parsed.language);
+        }
         if (parsed.instructions) setInstructions(parsed.instructions);
       } catch {
         setServerUrl(runtimeDefaultWsConfig.connectionUrl);
@@ -281,8 +632,12 @@ export default function Page() {
 
   useEffect(() => {
     if (!settingsLoaded) return;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ instructions }));
-  }, [instructions, settingsLoaded]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ instructions, language }));
+  }, [instructions, language, settingsLoaded]);
+
+  useEffect(() => {
+    document.documentElement.lang = selectedLanguage.htmlLang;
+  }, [selectedLanguage.htmlLang]);
 
   useEffect(() => {
     setLocalAudio((current) => ({
@@ -332,10 +687,14 @@ export default function Page() {
   const outputDuration = outputAudio.samples / TARGET_SAMPLE_RATE;
   const connected = socketState === "connected";
   const micLive = micState === "live" || micState === "listening";
-  const outputLabel = outputAudio.chunks ? `${formatDuration(outputDuration)} received` : "waiting";
-  const currentUserText = liveUser || (micLive ? "正在接收浏览器麦克风输入…" : "Start the browser microphone, speak naturally, and watch the transcript appear here.");
+  const outputLabel = outputAudio.chunks ? `${formatDuration(outputDuration)} ${t.status.outputReceived}` : t.status.waiting;
+  const currentUserText = liveUser || (micLive ? t.live.userListening : t.live.userPlaceholder);
   const currentAssistantText =
-    liveAssistant || (assistantSpeaking ? "Assistant speech is streaming back from the server." : "Returned speech audio will appear here when the server responds.");
+    liveAssistant || (assistantSpeaking ? t.live.assistantSpeaking : t.live.assistantPlaceholder);
+  const displaySessionLabel = t.sessionLabel[sessionLabel] || sessionLabel;
+  const displayMicState = micLive ? t.status.capturing : t.micState[micState] || micState;
+  const inputDeviceLabel = localAudio.inputLabel === "Browser microphone" ? t.devices.microphone : localAudio.inputLabel;
+  const outputDeviceLabel = localAudio.outputLabel === "Browser speakers" ? t.devices.speakers : localAudio.outputLabel;
 
   function setOutputAudioState(updater) {
     const next = typeof updater === "function" ? updater(outputAudioRef.current) : updater;
@@ -396,7 +755,7 @@ export default function Page() {
       const next = {
         ...(existing || { id: makeId("turn"), key, role, time: nowLabel() }),
         role,
-        text: cleanText || existing?.text || (meta.audioChunks ? "Assistant speech audio received." : "…"),
+        text: cleanText || existing?.text || (meta.audioChunks ? t.assistantAudioReceived : "…"),
         ...meta,
       };
 
@@ -443,7 +802,7 @@ export default function Page() {
     upsertHistory(
       getAssistantTurnKey(event),
       "assistant",
-      text || (audio.chunks ? "Assistant speech audio received." : "正在生成回复…"),
+      text || (audio.chunks ? t.assistantAudioReceived : t.assistantGenerating),
       audioHistoryMeta(audio, meta)
     );
   }
@@ -482,7 +841,7 @@ export default function Page() {
         if (socketRef.current !== socket) return;
         settled = true;
         setSocketState("connected");
-        setSessionLabel("session active");
+        setSessionLabel("sessionActive");
         pushEvent("socket.open", targetUrl);
         ensurePlayer();
         await playerRef.current?.resume?.();
@@ -509,7 +868,7 @@ export default function Page() {
 
         switch (event.type) {
           case "session.created":
-            setSessionLabel("session ready");
+            setSessionLabel("sessionReady");
             break;
           case "input_audio_buffer.speech_started":
             userTurnKeyRef.current = event.item_id || makeId("user-turn");
@@ -545,7 +904,7 @@ export default function Page() {
             break;
           }
           case "conversation.item.input_audio_transcription.failed": {
-            const detail = event.error?.message || "Speech transcription failed.";
+            const detail = event.error?.message || t.errors.transcriptionFailed;
             upsertHistory(getUserTurnKey(event), "user", detail, { kind: "transcript error", pending: false });
             setLiveUser("");
             liveUserRef.current = "";
@@ -576,7 +935,7 @@ export default function Page() {
                 setOutputAudioState((current) => ({ ...current, active: true }));
               }
               setAssistantSpeaking(true);
-              updateAssistantHistory(event, assistantTranscriptRef.current || "正在生成回复…", { pending: true });
+              updateAssistantHistory(event, assistantTranscriptRef.current || t.assistantGenerating, { pending: true });
             }
             break;
           case "response.text.delta":
@@ -650,7 +1009,7 @@ export default function Page() {
           }
           case "error":
             setSocketState("error");
-            setError(event.error?.message || event.message || "The server returned an error.");
+            setError(event.error?.message || event.message || t.errors.serverError);
             break;
           default:
             break;
@@ -660,8 +1019,8 @@ export default function Page() {
       socket.onerror = () => {
         if (socketRef.current !== socket) return;
         setSocketState("error");
-        setError("WebSocket connection failed.");
-        if (!settled) reject(new Error("WebSocket connection failed."));
+        setError(t.errors.websocketFailed);
+        if (!settled) reject(new Error(t.errors.websocketFailed));
       };
 
       socket.onclose = () => {
@@ -671,7 +1030,7 @@ export default function Page() {
         setAssistantSpeaking(false);
         pushEvent("socket.close", targetUrl);
         socketRef.current = null;
-        if (!settled) reject(new Error("WebSocket connection closed before opening."));
+        if (!settled) reject(new Error(t.errors.websocketFailed));
       };
     });
   }
@@ -683,7 +1042,7 @@ export default function Page() {
     socketRef.current?.close?.();
     socketRef.current = null;
     setSocketState("disconnected");
-    setSessionLabel("not connected");
+    setSessionLabel("notConnected");
     setMicState("idle");
     setMicLevel(0);
     setAssistantSpeaking(false);
@@ -704,12 +1063,12 @@ export default function Page() {
       }
     } catch (nextError) {
       setMicState("error");
-      setError(nextError instanceof Error ? nextError.message : "Could not connect to the websocket.");
+      setError(nextError instanceof Error ? nextError.message : t.errors.connectFailed);
       return;
     }
 
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
-      setError("Connect to the websocket before starting the microphone.");
+      setError(t.errors.websocketRequired);
       return;
     }
 
@@ -728,7 +1087,7 @@ export default function Page() {
       pushEvent("mic.start", "capturing");
     } catch (nextError) {
       setMicState("error");
-      setError(nextError instanceof Error ? nextError.message : "Could not start the microphone.");
+      setError(nextError instanceof Error ? nextError.message : t.errors.micStartFailed);
     }
   }
 
@@ -741,7 +1100,7 @@ export default function Page() {
   }
 
   function clearConversation() {
-    if (history.length && !window.confirm("清空当前对话历史？")) return;
+    if (history.length && !window.confirm(t.controls.confirmClear)) return;
     setHistory([]);
     setEvents([]);
     setLiveUser("");
@@ -763,41 +1122,58 @@ export default function Page() {
       <div className="app-frame">
         <header className="topbar">
           <div>
-            <h1>Real-time speech AI</h1>
+            <h1>{t.title}</h1>
           </div>
-          <StatusPill state={socketState} />
+          <div className="topbar-actions">
+            <div className="language-switch" aria-label={t.languageLabel}>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <button
+                  key={option.code}
+                  className={option.code === language ? "active" : ""}
+                  type="button"
+                  onClick={() => setLanguage(option.code)}
+                  aria-pressed={option.code === language}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <StatusPill state={socketState} labels={t.status} />
+          </div>
         </header>
 
-        <section className="status-strip" aria-label="Session overview">
-          <Metric label="端点 · Endpoint" mono>
-            {displayServerUrl || serverUrl || "loading"}
+        <section className="status-strip" aria-label={t.aria.sessionOverview}>
+          <Metric label={t.status.endpoint} mono>
+            {displayServerUrl || serverUrl || t.status.loading}
           </Metric>
-          <Metric label="会话 · Session">{sessionLabel}</Metric>
-          <Metric label="麦克风 · Mic">{micLive ? "采集中" : micState}</Metric>
-          <Metric label="输出音频 · Output">{outputLabel}</Metric>
+          <Metric label={t.status.session}>{displaySessionLabel}</Metric>
+          <Metric label={t.status.mic}>{displayMicState}</Metric>
+          <Metric label={t.status.output}>{outputLabel}</Metric>
         </section>
 
         <section className="main-grid">
           <div className="left-column" data-role="leftcol" ref={leftColumnRef}>
-            <section className="live-grid" aria-label="Realtime interaction">
+            <section className="live-grid" aria-label={t.aria.realtimeInteraction}>
               <article className="live-card live-card-user">
                 <div className="card-head">
                   <div>
-                    <p>Live transcript</p>
-                    <h2>Listening for speech</h2>
+                    <p>{t.live.userKicker}</p>
+                    <h2>{t.live.userTitle}</h2>
                   </div>
-                  <span className="role-badge role-badge-user">你 · YOU</span>
                 </div>
-                <div className="live-card-body live-card-body-user">
-                  <Mascot role="user" active={micLive} />
+                <div className="live-card-body live-card-body-user live-card-body-stage">
+                  <div className="role-stage">
+                    <span className="role-badge role-badge-user">{t.live.userRole}</span>
+                    <Mascot role="user" active={micLive} />
+                  </div>
                   <div className="live-copy">
                     <div className={`state-line ${micLive ? "active" : ""}`}>
                       <span />
-                      正在聆听 · LISTENING
+                      {t.live.userState}
                     </div>
                     <p>{currentUserText}</p>
                     <div className="input-level">
-                      <span>输入电平</span>
+                      <span>{t.live.inputLevel}</span>
                       <EqBars color="var(--user)" height={24} active={micLive} level={Math.max(0.28, micLevel)} />
                     </div>
                   </div>
@@ -807,17 +1183,19 @@ export default function Page() {
               <article className="live-card live-card-assistant">
                 <div className="card-head">
                   <div>
-                    <p>Speech output</p>
-                    <h2>Assistant audio stream</h2>
+                    <p>{t.live.assistantKicker}</p>
+                    <h2>{t.live.assistantTitle}</h2>
                   </div>
-                  <span className="role-badge role-badge-assistant">语音助手 · AI</span>
                 </div>
-                <div className="live-card-body">
-                  <Mascot role="assistant" active={assistantSpeaking} />
+                <div className="live-card-body live-card-body-stage">
+                  <div className="role-stage role-stage-assistant">
+                    <span className="role-badge role-badge-assistant">{t.live.assistantRole}</span>
+                    <Mascot role="assistant" active={assistantSpeaking} />
+                  </div>
                   <div className="live-copy">
                     <div className={`state-line state-line-assistant ${assistantSpeaking ? "active" : ""}`}>
                       <span />
-                      正在播放 · SPEAKING
+                      {t.live.assistantState}
                     </div>
                     <EqBars
                       color="var(--assistant)"
@@ -832,6 +1210,7 @@ export default function Page() {
                       chunks={outputAudio.chunks}
                       active={outputAudio.active}
                       peak={outputAudio.peak}
+                      labels={t.audio}
                     />
                   </div>
                 </div>
@@ -841,19 +1220,19 @@ export default function Page() {
             <section className="conversation-panel">
               <div className="conversation-head">
                 <div>
-                  <p>Conversation</p>
-                  <h2>对话记录</h2>
+                  <p>{t.conversation.kicker}</p>
+                  <h2>{t.conversation.title}</h2>
                 </div>
                 <div className="legend-row">
                   <span>
                     <i className="legend-user" />
-                    你
+                    {t.conversation.userLegend}
                   </span>
                   <span>
                     <i className="legend-assistant" />
-                    语音助手
+                    {t.conversation.assistantLegend}
                   </span>
-                  <strong>{history.length} 轮</strong>
+                  <strong>{t.conversation.turns(history.length)}</strong>
                 </div>
               </div>
 
@@ -863,7 +1242,7 @@ export default function Page() {
                     <article key={item.id} className={`turn-row turn-row-${item.role}`}>
                       <div className="turn-bubble-wrap">
                         <div className="turn-meta">
-                          <span>{item.role === "user" ? "你 · YOU" : "语音助手 · ASSISTANT"}</span>
+                          <span>{item.role === "user" ? t.live.userRole : t.conversation.assistantMeta}</span>
                           <time>{item.time}</time>
                         </div>
                         <div className="turn-bubble">
@@ -876,10 +1255,9 @@ export default function Page() {
                                 chunks={item.audioChunks}
                                 active={false}
                                 peak={item.audioPeak}
+                                labels={t.audio}
                               />
-                              <span>
-                                {item.audioChunks} 段音频 · {formatDuration(item.audioDuration)} · {formatBytes(item.audioBytes)}
-                              </span>
+                              <span>{t.audio.summary(item.audioChunks, formatDuration(item.audioDuration), formatBytes(item.audioBytes))}</span>
                             </div>
                           ) : null}
                         </div>
@@ -888,7 +1266,7 @@ export default function Page() {
                   ))
                 ) : (
                   <div className="empty-state">
-                    <p>No completed turns yet.</p>
+                    <p>{t.conversation.empty}</p>
                   </div>
                 )}
               </div>
@@ -897,77 +1275,77 @@ export default function Page() {
 
           <aside className="right-column" data-role="rightcol" ref={rightColumnRef}>
             <section className="side-panel session-panel">
-              <p>Session</p>
-              <h2>会话控制</h2>
+              <p>{t.controls.sessionKicker}</p>
+              <h2>{t.controls.sessionTitle}</h2>
               <button className="primary-action" type="button" onClick={connected ? disconnect : () => void connect().catch(() => {})}>
-                {connected ? "断开连接" : "连接服务器"}
+                {connected ? t.controls.disconnect : t.controls.connect}
               </button>
               <button className="secondary-action" type="button" onClick={micRef.current ? stopMic : startMic}>
                 <span className={micLive ? "action-dot action-dot-on" : "action-dot"} />
-                {micRef.current ? "停止麦克风" : "启动浏览器麦克风"}
+                {micRef.current ? t.controls.stopMic : t.controls.startMic}
               </button>
               <button className="weak-action" type="button" onClick={clearConversation}>
-                清空对话历史
+                {t.controls.clearHistory}
               </button>
               {error ? (
                 <div className="side-alert side-alert-error">
-                  <strong>Connection issue</strong>
+                  <strong>{t.alerts.connection}</strong>
                   <span>{error}</span>
                 </div>
               ) : null}
               {!localAudio.secureContext || !localAudio.available ? (
                 <div className="side-alert">
-                  <strong>Browser audio</strong>
-                  <span>Use HTTPS or localhost so the browser can grant microphone access.</span>
+                  <strong>{t.alerts.browserAudio}</strong>
+                  <span>{t.alerts.browserAudioDetail}</span>
                 </div>
               ) : null}
             </section>
 
             <section className="side-panel devices-panel">
-              <p>Devices · 设备</p>
+              <p>{t.devices.title}</p>
               <div className="device-row">
-                <span>输入</span>
-                <strong>{localAudio.inputLabel}</strong>
+                <span>{t.devices.input}</span>
+                <strong>{inputDeviceLabel}</strong>
               </div>
               <div className="device-row">
-                <span>输出</span>
-                <strong>{localAudio.outputLabel}</strong>
+                <span>{t.devices.output}</span>
+                <strong>{outputDeviceLabel}</strong>
               </div>
             </section>
 
             <section className="side-panel instructions-panel">
               <div className="side-head-row">
                 <div>
-                  <p>Instructions</p>
-                  <h2>系统提示词</h2>
+                  <p>{t.instructions.kicker}</p>
+                  <h2>{t.instructions.title}</h2>
                 </div>
-                <span>System prompt</span>
+                <span>{t.instructions.tag}</span>
               </div>
               <textarea value={instructions} onChange={(event) => setInstructions(event.target.value)} rows={6} />
             </section>
 
             <section className="collapse-panel">
               <button type="button" onClick={() => setShowAdvanced((value) => !value)}>
-                <span>高级设置 · Advanced</span>
-                <span>{showAdvanced ? "收起 ▾" : "展开 ▸"}</span>
+                <span>{t.advanced.title}</span>
+                <span>{showAdvanced ? t.advanced.collapse : t.advanced.expand}</span>
               </button>
               {showAdvanced ? (
                 <div className="collapse-body">
                   <label>
-                    <span>Remote realtime URL</span>
+                    <span>{t.advanced.remoteUrl}</span>
                     <input value={displayServerUrl || serverUrl} readOnly spellCheck="false" />
                   </label>
                   <label>
-                    <span>Browser WebSocket URL</span>
+                    <span>{t.advanced.browserUrl}</span>
                     <input value={serverUrl} readOnly spellCheck="false" />
                   </label>
                   <div className="setting-row">
-                    <span>采样率 Sample rate</span>
+                    <span>{t.advanced.sampleRate}</span>
                     <strong className="mono">{TARGET_SAMPLE_RATE} Hz</strong>
                   </div>
                   <div className="setting-row">
-                    <span>传输 Transport</span>
-                    <strong>OpenAI Realtime WS</strong>
+                    <span>{t.advanced.transport}</span>
+                    <strong>{t.advanced.transportValue}</strong>
                   </div>
                 </div>
               ) : null}
@@ -976,9 +1354,9 @@ export default function Page() {
             <section className="collapse-panel">
               <button type="button" onClick={() => setShowLog((value) => !value)}>
                 <span>
-                  开发者日志 · Log <strong>{events.length}</strong>
+                  {t.log.title} <strong>{events.length}</strong>
                 </span>
-                <span>{showLog ? "收起 ▾" : "展开 ▸"}</span>
+                <span>{showLog ? t.advanced.collapse : t.advanced.expand}</span>
               </button>
               {showLog ? (
                 <div className="developer-log">
@@ -991,7 +1369,7 @@ export default function Page() {
                       </div>
                     ))
                   ) : (
-                    <div className="log-empty">No events yet.</div>
+                    <div className="log-empty">{t.log.empty}</div>
                   )}
                 </div>
               ) : null}
