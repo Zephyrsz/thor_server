@@ -17,9 +17,9 @@ const DEFAULT_LANGUAGE = "zh";
 const DEFAULT_INSTRUCTIONS =
   "You are a concise, helpful voice assistant. Keep replies natural and brief unless the user asks for detail.";
 const LANGUAGE_OPTIONS = [
-  { code: "zh", label: "中文", htmlLang: "zh-CN" },
-  { code: "ja", label: "日本語", htmlLang: "ja" },
-  { code: "en", label: "English", htmlLang: "en" },
+  { code: "zh", label: "中文", flag: "🇨🇳", htmlLang: "zh-CN" },
+  { code: "ja", label: "日本語", flag: "🇯🇵", htmlLang: "ja" },
+  { code: "en", label: "English", flag: "🇬🇧", htmlLang: "en" },
 ];
 
 const TRANSLATIONS = {
@@ -1125,18 +1125,24 @@ export default function Page() {
             <h1>{t.title}</h1>
           </div>
           <div className="topbar-actions">
-            <div className="language-switch" aria-label={t.languageLabel}>
-              {LANGUAGE_OPTIONS.map((option) => (
-                <button
-                  key={option.code}
-                  className={option.code === language ? "active" : ""}
-                  type="button"
-                  onClick={() => setLanguage(option.code)}
-                  aria-pressed={option.code === language}
-                >
-                  {option.label}
-                </button>
-              ))}
+            <div className="language-switch" data-label={selectedLanguage.label} aria-label={t.languageLabel}>
+              <span className="language-flag" aria-hidden="true">
+                {selectedLanguage.flag}
+              </span>
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+                aria-label={t.languageLabel}
+              >
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>
+                    {option.flag} {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="language-chevron" aria-hidden="true">
+                ▾
+              </span>
             </div>
             <StatusPill state={socketState} labels={t.status} />
           </div>
@@ -1192,7 +1198,7 @@ export default function Page() {
                     <span className="role-badge role-badge-assistant">{t.live.assistantRole}</span>
                     <Mascot role="assistant" active={assistantSpeaking} />
                   </div>
-                  <div className="live-copy">
+                  <div className="live-copy assistant-copy">
                     <div className={`state-line state-line-assistant ${assistantSpeaking ? "active" : ""}`}>
                       <span />
                       {t.live.assistantState}

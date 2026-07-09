@@ -105,34 +105,66 @@ audio {
 }
 
 .language-switch {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 8px;
+  min-width: 138px;
+  min-height: 38px;
+  padding: 0 34px 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
 }
 
-.language-switch button {
-  min-width: 58px;
+.language-switch:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.language-switch select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
   cursor: pointer;
-  border-radius: 999px;
+  border: 0;
+  appearance: none;
   background: transparent;
-  color: var(--text-muted);
-  padding: 6px 10px;
+  color: transparent;
+  font-size: 12px;
+}
+
+.language-switch select:focus-visible {
+  outline: 2px solid var(--user);
+  outline-offset: 2px;
+}
+
+.language-switch option {
+  color: #111827;
+}
+
+.language-flag {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.language-switch::after {
+  content: attr(data-label);
+  max-width: 72px;
+  overflow: hidden;
+  color: var(--text-soft);
   font-size: 12px;
   font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.language-switch button:hover {
-  color: var(--text-soft);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.language-switch button.active {
-  background: rgba(79, 224, 191, 0.16);
-  color: var(--user-soft);
+.language-chevron {
+  position: absolute;
+  right: 13px;
+  color: var(--text-muted);
+  font-size: 12px;
+  pointer-events: none;
 }
 
 .topbar h1 {
@@ -292,6 +324,12 @@ audio {
   color: var(--assistant);
 }
 
+.live-card-assistant .card-head {
+  align-items: flex-end;
+  justify-content: flex-end;
+  text-align: right;
+}
+
 .card-head h2,
 .conversation-head h2,
 .side-panel h2,
@@ -401,6 +439,34 @@ audio {
 
 .live-card-assistant .live-copy p {
   color: #eaf1ff;
+}
+
+.assistant-copy {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  text-align: right;
+}
+
+.assistant-copy .state-line {
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.assistant-copy .eq-bars,
+.assistant-copy .inline-player {
+  justify-content: flex-end;
+}
+
+.assistant-copy p,
+.assistant-copy .inline-player {
+  align-self: flex-end;
+  width: 100%;
+  max-width: 100%;
+}
+
+.assistant-copy .progress-track {
+  flex: 0 1 76px;
 }
 
 .state-line {
@@ -1152,6 +1218,10 @@ audio {
   .side-head-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .live-card-assistant .card-head {
+    align-items: flex-end;
   }
 
   .conversation-panel {
